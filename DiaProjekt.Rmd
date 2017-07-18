@@ -1,0 +1,1218 @@
+---
+title: 'SynMod+: DiaProjekt (UFSP SpuR)'
+author: "Merlin Unterfinger, Geography UZH"
+date: 18 7 2017
+output:
+  rmarkdown::pdf_document:
+    fig_caption: yes        
+    includes:  
+      in_header: preamble-latex.tex
+    number_sections: yes
+    toc: yes
+    toc_depth: 2
+    citation_package: natbib
+  html_document: default
+biblio-style: "apalike"
+link-citations: true
+csl: apa.csl
+bibliography: References.bib
+abstract: "The aim of this project is to develop a new approach to model linguistic regions and their borders. In order to study the spatial distribution of linguistic phenomena, concepts from Geography and GIScience are applied on a linguistic data set, which was collected in the project ‘Syntactic Atlas of German-speaking Switzerland’ (SADS) during the years 2000 till 2002. Techniques from machine learning, like the Support Vector Machine (SVM) and a spatial regularization of the classification map (MRF) are combined with other well-known geographic concepts (Tobler’s first law, hiking function and least cost paths) to create linguistic regions, which take the inherent spatial dependencies between the data points into account. Also a gravity model based index finds application to weight the linguistic influence of two neighbors on each other. \n\nThe project is supervised by Curdin Derungs, head of the GISLab, a research group of the ‘Language and Space’ initiative at the University of Zurich.
+"
+filter: pandoc-eqnos
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls())             # Clean the environment
+options(scipen=6)         # Display digits, not the scientific version
+options(digits.secs=6)    # use milliseconds in Date/Time data types
+options(warning=FALSE)    # Don't show warnings
+par(mfrow=c(1,1))         # reset plot placement to normal 1 by 1
+
+directory <- getwd()
+origDataFolder    <- file.path(directory, "data/original")
+geoDataFolder     <- file.path(directory, "data/geo")
+tmpDataFolder     <- file.path(directory, "data/tmp")
+resultsDataFolder <- file.path(directory, "data/results")
+figureFolder      <- file.path(directory, "figures")
+```
+
+\newpage
+
+# Libraries
+The following libraries are needed, to execute the code:
+
+* **e1071** -- Support vector Machine -- [@e1071]
+* **FNN** -- Fast nearest neighbor search -- [@FNN]
+* **foreign** -- Open foreign data formats (SPSS) -- [@foreign]
+* **gdistance** -- Least cost path, walking time -- [@gdistance]
+* **ggplot2** -- Plots -- [@ggplot2]
+* **rasterVis** -- Plots of raster -- [@rasterVIS]
+* **rgdal** -- Open Shapefiles -- [@rgdal]
+* **rgeos** -- Geoprocessing -- [@rgeos]
+* **sp** -- Spatial datatypes -- [@sp2; @sp1]
+
+```{r librarires, message=FALSE, echo=FALSE}
+library(e1071)            # Support Vector Machine library
+library(sp)               # Spatial data types
+library(FNN)              # Nearest neighbor search
+library(foreign)          # Open .sav file
+library(rgeos)            # Geoprocessing
+library(rgdal)            # Open Shapefiles
+library(ggplot2)          # Plots
+library(gdistance)        # Least cost path - Walking time
+library(rasterVis)        # Plots of rasters
+
+# install.packages("e1071")
+# install.packages("sp")
+# install.packages("FNN")
+# install.packages("foreign")
+# install.packages("rgeos")
+# install.packages("rgdal")
+# install.packages("ggplot2")
+# install.packages("gdistance")
+# install.packages("rasterVis")
+```
+
+# Data
+## Linguistic data
+The database for this project is the Syntactic Atlas of German-speaking Switzerland (SADS). In the years between 2000 and 2002 about 3'200 participants answered four questionnaires at 383 different survey sites. The questions asked, were about syntactic phenomena of the Swiss German language. Compared to other linguistic surveys, SADS is special, because it has multiple participants respondents per study site and therefore covers the local linguistic diversity. Per study site from 3 to 26 persons (median: 8) were involved in the survey [@Bucheli2002; @Jeszenszky2016].  
+The original data set has been aggregated to the level of the Swiss communities. This means each community is represented by a point (point data). Due to the strongly varying number of participants per survey site, a majority voting per survey site and phenomena is not suitable. Therfore, a random sampling on survey site is applied to achieve a statistically more stable data base for the study. Each survey site was sampled 8 (median of persons per survey site) times with replacement. Then a majority vote on the manifestations of the phenomena was applied on the random sampled dataset. The majority vote values (class assignments) serve as input for the further steps. Phenomenas which have no variance or too few variance (more than 98% of all survey sites in one class) are removed, since prediting class assignments in these cases is not meaningful.
+
+## Population
+The population data of the Swiss communities in the year 2013 is provided by the Federal Office for statistics (BfS). The data set (STATPOP 2013) represents the population of Switzerland aggregated to hectare raster cells. Each raster cell is stored as a polygon. For easier access on the data, the polygons have been rasterized to a GeoTiff (with 100m resolution) using the *to raster* module of ArcGIS.
+
+## Geodata
+The digital elevation model DHM200 of Swisstopo delivers the terrain height information used in this study.
+For visualization purposes the outline of Switzerland was produced by merging the polygons of all Swiss cantons (SwissBOUNDARIES3D) from Swisstopo. Then the outline of Switzerland was simplified to save processing time, when plotting.
+
+```{r Load data, echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
+# DATA
+# Open original dataset
+savfilename <- "Gesamttabelle_68phen_alleSprecher.sav"
+dat = read.spss(file.path(origDataFolder,savfilename), to.data.frame=TRUE)
+
+# Shrink for testing
+#dat <- dat[,1:23]
+
+phens <- colnames(dat)
+# IMPORTANT!!! IF ORIGINAL FILESIZE UNCOMmENT LINES BELOW
+phens[phens=="iv3es_ihm"] <- "iv3_es_ihm"
+phens[phens=="iv3ihm_es"] <- "iv3_ihm_es"
+colnames(dat) <- phens
+
+# Open Peter's file; coordinates
+csvfilename <- "I11_2Dregressed.csv"
+coordsBFS <- read.csv(file.path(origDataFolder, csvfilename), header = T)
+coordsBFS <- coordsBFS[,3:7]
+
+# Remove spaces in BFS of dat
+dat$BFS_Nr <- sapply(X=" ", gsub, "", dat$BFS_Nr)
+
+# RANDOM SAMPLING
+# Median of occurences
+coordsBFS$occCount <- numeric(nrow(coordsBFS))
+for (i in 1:nrow(coordsBFS)) {
+  coordsBFS$occCount[i] <- nrow(dat[dat$BFS_Nr==coordsBFS$BFS_Nr[i],1:3])
+}
+m <- median(coordsBFS$occCount)
+
+# Random sampling with median = 8
+datSample <- data.frame()
+for (i in 1:nrow(coordsBFS)) {
+  candidates <- dat[dat$BFS_Nr==coordsBFS$BFS_Nr[i],]
+  pick <- candidates[sample(nrow(candidates), size=8, replace=TRUE), ]
+  # IMPORTANT!!! IF ORIGINAL FILESIZE UNCOMNMENT LINES BELOW
+  colSums(pick[3:211], na.rm = TRUE, dims = 1)
+  #colSums(pick[3:23], na.rm = TRUE, dims = 1)
+  # IMPORTANT!!! IF ORIGINAL FILESIZE UNCOMmENT LINES BELOW
+  datSample <- rbind(datSample, colSums(pick[3:211], na.rm = TRUE, dims = 1))
+  #datSample <- rbind(datSample, colSums(pick[3:23], na.rm = TRUE, dims = 1))
+}
+# IMPORTANT!!! IF ORIGINAL FILESIZE UNCOMmENT LINES BELOW
+colnames(datSample) <- phens[3:211]
+#colnames(datSample) <- phens[3:23]
+
+# Extract phenomena names
+phens <- sapply(X = phens, FUN = strsplit, "_")
+phenNames <- character(length(phens))
+for (i in 1:length(phens)){
+  phenNames[i] <- phens[[i]][1]
+}
+phenNames <- unique(phenNames)
+phenNames <- phenNames[3:length(phenNames)]
+
+# Phenomena - col matching
+phens <- colnames(datSample)
+phen2Col <- numeric(length(phens))
+for (i in 1:length(phens)) {
+  phen2Col[i] <- which.max(rev(sapply(X=phenNames, FUN=pmatch, phens[i], 0 , FALSE)))
+}
+
+# Change back to the right order, which.max takes the first min, the last was needed
+phen2Col <- max(phen2Col)-phen2Col+1
+
+# Majority vote on sample
+dat <- numeric(length(phenNames))
+for (i in 1:length(phenNames)){
+  # Get phenomena of interest
+  phenomena <- datSample[,i == phen2Col]
+  # Extract maximum
+  dat <- cbind(dat, as.numeric(apply(X = phenomena, FUN = which.max, MARGIN = 1)))
+  if (ncol(phenomena) <= 1) {
+    cat("Warning, the size of this phenomena is to small, size: ")
+    cat(ncol(phenomena))
+    cat(", index: ")
+    cat(i)
+  }
+}
+
+# Clean data sets and proper naming
+dat <- as.data.frame(dat[,-1])
+colnames(dat) <- phenNames
+coordsBFS$N_GPS<-NULL
+dat <- cbind(coordsBFS, dat)
+names <- colnames(dat)
+names[1:5] <- c('Easting', 'Northing', 'BFS', 'Name', 'Count') 
+colnames(dat) <- names
+
+# Create factors from columns
+dat[names[6:ncol(dat)]] <- lapply(dat[names[6:ncol(dat)]], factor)
+
+# Remove phenomenas which only show one variant or less than 90% variation
+n <- nrow(dat)
+varLimit <- n * 0.98
+toRemove <- character()
+toRemoveReason <- character()
+for (i in 6:ncol(dat)){
+  # Check for levels
+  if (length(levels(dat[ ,i]))<=1) {
+    toRemove <- c(toRemove, names[i])
+    toRemoveReason <- c(toRemoveReason, "No variance")
+    # cat(names[i])
+    # cat(" removed - no variance\n")
+  } else {
+    # Check for enough variance
+    test <- summary(dat[,i])
+    for (j in 1:length(test)){
+      if(test[j]>varLimit){
+            toRemove <- c(toRemove, names[i])
+            toRemoveReason <- c(toRemoveReason, "Too few variance")
+            # cat(names[i])
+            # cat(" removed - to few variance\n")
+            next
+      }
+    }
+  }
+}
+
+dat[toRemove] <- NULL
+names <- colnames(dat)
+phenNames <- names[6:length(names)]
+
+# Prepare table
+removed <- data.frame(toRemove, toRemoveReason)
+colnames(removed) <- c("Phenomena", "Reason")
+
+# Save process data as csv file
+write.csv(dat, file = file.path(resultsDataFolder, "randomSampling.csv"))
+write.csv(removed, file = file.path(resultsDataFolder, "removedPhenomena.csv"))
+```
+
+```{r Load geodata, echo=FALSE, message=FALSE, warning=FALSE}
+## GEODATA
+# Define the CRS strings
+CH1903 <- CRS("+init=epsg:21781")
+WGS84 <- CRS("+init=epsg:4326")
+
+# Load CH oultine and the multiplot function
+outline <- readOGR(geoDataFolder, "outlineCH", verbose=FALSE)
+proj4string(outline) <- CH1903
+outline <- fortify(outline)
+outlinecol <- "dimgray"
+
+# Load CH oultine and the multiplot function
+lakes <- readOGR(geoDataFolder, "Lakes_dissolve_simplify", verbose=FALSE)
+proj4string(lakes) <- CH1903
+lakes <- fortify(lakes)
+lakecol <- "mediumblue"
+
+# Load downsampled DEM for plotting
+dhm <- raster(file.path(geoDataFolder, "dhm25_750m_clip_buff.tif"))
+proj4string(dhm) <- CH1903
+
+# Creating hillshading from DEM:
+slope = terrain(dhm, opt='slope')
+aspect= terrain(dhm, opt='aspect')
+hs = hillShade(slope, aspect, angle=70, direction=270)
+
+#   Convert rasters to dataframes for plotting with ggplot
+hdfCH <- rasterToPoints(hs);
+hdfCH <- data.frame(hdfCH)
+colnames(hdfCH) <- c("X","Y","Hill")
+hdfCH$Hill <- 1-hdfCH$Hill
+
+# Load dhm25_100m
+dhm100 <- raster(file.path(geoDataFolder, "dhm25_100m.tif"))
+proj4string(dhm100) <- CH1903
+
+# Load STATPOP13B_100m & cutoff last column
+statpop13B <- raster(file.path(geoDataFolder, "STATPOP13B_100m.tif"))
+proj4string(statpop13B) <- CH1903
+statpop13B[is.na(statpop13B)] <- 1
+statpop13B[,ncol(statpop13B)] <- NA
+statpop13B <- trim(statpop13B)
+```
+
+\newpage
+## Overview
+```{r load dat again, echo=FALSE}
+dat <- read.csv(file.path(resultsDataFolder, "randomSampling.csv")) #, header = T)
+dat$X <- NULL
+# Create factors from columns
+names <- colnames(dat)
+dat[names[6:ncol(dat)]] <- lapply(dat[names[6:ncol(dat)]], factor)
+```
+
+```{r Overview plot 1, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena i1. The point size represents the number of participants per survey site."}
+p <- qplot() +
+  coord_fixed(ratio = 1) +
+  xlab("Easting") +
+  ylab("Northing") +
+  geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+  scale_alpha(guide = 'none') +
+  geom_polygon(data = lakes,
+          aes(x = long, y = lat, group = group),
+          fill = lakecol, size = .2, alpha=0.3) +
+  geom_point(data=dat, aes(x = Easting, y = Northing,
+           size=Count, colour=i1), alpha=0.8) + 
+  geom_path(data = outline, 
+            aes(x = long, y = lat, group = group, size = Population),
+            color = outlinecol, size = .2)
+  # + ggtitle("Overview Plot")
+
+print(p)
+```
+
+```{r Overview plot 2, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena iv17. The point size represents the number of participants per survey site."}
+p <- qplot() +
+  coord_fixed(ratio = 1) +
+  xlab("Easting") +
+  ylab("Northing") +
+  geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+  scale_alpha(guide = 'none') +
+  geom_polygon(data = lakes,
+          aes(x = long, y = lat, group = group),
+          fill = lakecol, size = .2, alpha=0.3) +
+  geom_point(data=dat, aes(x = Easting, y = Northing,
+           size=Count, colour=iv17), alpha=0.8) +
+  geom_path(data = outline,
+            aes(x = long, y = lat, group = group, size = Population),
+            color = outlinecol, size = .2)
+  # + ggtitle("Overview Plot")
+
+print(p)
+```
+
+```{r Overview table, echo=FALSE}
+knitr::kable(head(dat[ ,1:14],5), caption = "Structure of the processed data set (random sampling & majority vote).")
+```
+
+Table 1 shows the structure of the processed data set. Each community is represented as a data point, which has a row in the table. The phenomenas are representend by the majority vote (dominant variant) of the random sampling in a particular community.
+
+```{r Removed table, echo=FALSE}
+removed <- read.csv(file.path(resultsDataFolder, "removedPhenomena.csv")) #, header = T)
+removed$X <- NULL
+
+knitr::kable(removed, caption = "Removed phenomenas, due to missing variance.")
+```
+
+\newpage
+
+# Support Vector Machine
+## Parameter Selection
+To select the best parameters for the training of the SVM with a radial basis function (RBF) kernel a *Grid Search* is performed. The aim is to find the best combination of gamma and cost based on a previously given selection of possible values for each parameter. This step is repeatedly for every linguistic phenomena and its corresponding data record. The grid search is performed by applying the `tune.svm()` function from the *e1071* package. In the following table, the best parameters for the training of a SVM on this data set, found by a grid search, are listed [@Karatzoglou2006].
+
+```{r grid search, fig.align='center', echo=FALSE, eval=FALSE}
+# Set up gammas to consider
+gammalist <- c(0.1, 0.5, 1, 1.5, 2)
+bestParameters <- numeric(4)
+for (i in 6:ncol(dat)){
+  phen <- data.frame(dat$Easting, dat$Northing, dat[ ,i])
+  colnames(phen) <- c('Easting','Northing','DominantVar')
+  
+  # Perform grid search
+  tobj <- tune.svm(DominantVar~., data =  phen,
+                gamma = gammalist, cost = 10^(1:3))
+  
+  # Save best parameters
+  bestParameters <- rbind(bestParameters, tobj$performances[rownames(tobj$best.parameters),])
+  cat(i)
+  cat("-")
+}
+bestParameters <- bestParameters[-1,]
+bestParameters <- data.frame(bestParameters)
+phenNames <- colnames(dat)
+phenNames <- phenNames[6:length(phenNames)]
+rownames(bestParameters) <- phenNames
+colnames(bestParameters) <- c("Gamma", "Cost", "Error", "Dispersion")
+
+# Save files
+write.csv(bestParameters, file = file.path(resultsDataFolder, "SVMParameters.csv"))
+```
+
+```{r load tmp files SVM, echo=FALSE}
+bestParameters <- read.csv(file.path(resultsDataFolder, "SVMParameters.csv")) #, header = T)
+
+rownames(bestParameters) <- bestParameters$X
+bestParameters$X <- NULL
+
+knitr::kable(round(bestParameters,3), caption = "The best parameters from grid search.", row.names=TRUE)
+```
+
+
+## Training of the SVM
+With the evaluated parameters from the previous section, a SVM is trained including all the data points of the phenomena. Due to the fact that the interest is focused on the resulting hyperplane, no split in training and testing data is done. The trained SVM is of type 'RBF', which means it uses a Gaussian kernel and therefore is a non parametric/nonlinear algorithm.
+
+\newpage
+# Spatial Context
+## Setup Grid
+A regular grid of data points is expanded over the area of Switzerland. The extent is taken from the outline of Switzerland from SwissBOUNDARIES (Swisstopo).
+```{r Setup grid, fig.align='center', echo=FALSE, message=FALSE, message=FALSE, fig.cap="Regular grid expanded over the area of Switzerland."}
+# Create grid of the size of CH
+gridRes <- 5000 # Resolution in meters
+gridRange <- apply(outline[c("long", "lat")], 2, range)
+dx <- gridRange[2, 1]-gridRange[1, 1]
+dy <- gridRange[2, 2]-gridRange[1, 2]
+xres <- dx/gridRes
+yres <- dy/gridRes
+x1 <- seq(from = gridRange[1, 1] - 0.025, to = gridRange[2, 1] + 0.025, length = xres)
+x2 <- seq(from = gridRange[1, 2] - 0.05, to = gridRange[2, 2] + 0.05, length = yres)
+grid <- expand.grid("Easting" = x1, "Northing" = x2)
+
+# Convert grid into spatial point data frame
+coordinates(grid)<-~Easting+Northing
+proj4string(grid) <- CH1903
+
+# Grid specfic data table
+Min <- as.vector(gridRange[1,])
+Max <- as.vector(gridRange[2,])
+Resolution <- as.vector(c(xres, yres))
+PixelSize <- as.vector(c(gridRes, gridRes))
+gridInfo <- data.frame(Min, Max, Resolution, PixelSize)
+rownames(gridInfo) <- c("Easting","Northing")
+knitr::kable(round(gridInfo,1), caption = "The extent and resolution of the expanded grid.")
+
+# p <-   ggplot() +
+#   coord_fixed(ratio = 1) +
+#   xlab("Easting") +
+#   ylab("Northing") +
+#   geom_point(data =  as.data.frame(grid),
+#              aes(Easting, Northing), size=0.7, shape=3, alpha = 0.6) +
+#   geom_path(data = outline,
+#           aes(x = long, y = lat, group = group),
+#           color = outlinecol, size = .2)
+# print(p)
+```
+
+By applying the `extract()` function from the *raster* package on the grid data points and the data layers of the population *STATPOP13* and the height *DHM25_100m* the values at the grid data points position are extracted.
+```{r Process grid data points, fig.align='center', echo=FALSE}
+# Extract height of points
+grid$Height <- extract(dhm100, grid)
+# Delete Gridpoints outside the DHM (Switzerland)
+grid <- grid[!is.na(grid$Height),]
+# Extract Population
+grid$Population <- extract(statpop13B, grid)
+
+# Grid specfic data table
+#knitr::kable(round(head(as.data.frame(grid[order(-grid$Population),]),3),1), caption = "Overview of the #processed grid data points.", row.names = FALSE)
+```
+
+## Nearest Neighbors
+The nearest neighbors of each grid point are extracted by applying the `spDists()` function from the *sp* package on the grid. Then the `knn.index()` function from the *sp* package extracts the indices of the *k* nearest neighbors. 
+
+```{r Nearest neighbors, message=FALSE, echo=FALSE}
+# Set number of nearest neighbors
+n <- 8
+
+# Extract distances
+grid.d<-spDists(grid,longlat=FALSE)
+
+# Search for the nearest neighbors (index)
+grid.nn.i<-knn.index(grid.d, k=8, algorithm=c("kd_tree"))
+```
+
+## Hiking Function
+@Tobler1993 defined a hiking function, which is representing the walking velocity $W$ [$\frac ms$] dependent on the slope of a path:
+$$W = \frac{6e^{-3.5|m + 0,05|}}{3.6}$$
+Because the units in this study are meters and seconds, the function has to be divided by 3.6 to get from $\frac {km}h$ to $\frac ms$
+
+```{r Hicking function, fig.align='center', fig.width=4.5, fig.height=2, message=FALSE, echo=FALSE, fig.cap="Toblers hiking function."}
+# Toblers function
+paths <- function(x) (6 * exp(-3.5 * abs(x+ 0.05)))/3.6
+xseq <- seq(-0.5, 0.5, by = 0.01)
+tobler <- data.frame(xseq, paths(xseq))
+colnames(tobler) <- c("m","v")
+
+# Apply Toblers function
+#nn$W <- sapply(X=nn$m, FUN = paths)
+
+# Plot
+ggplot(tobler, aes(x=atan(m), y=v)) +
+    geom_line() +      # Use hollow circles
+    ylab("Velocity [km/h]") +
+    xlab("Slope [°]")
+```
+
+## Least Cost Path & Walking Time
+By using the the *gdistance* package, least cost paths between all neighbors are estimated and the time for walking these paths is extracted with the `costDistance()` function. The least cost path estimation is based on a transition layer (*conductance*), which is generated with the height differences of the pixels in the DHM. In a next step Toblers hiking function is applied on the Slope in 8 directions of each pixel. This produces a transition layer with the walking velocity $W$ in the 8 possible directions at every pixel in the DHM.
+```{r GDistance Costpaths, echo=FALSE, warning=FALSE, message=FALSE, eval=FALSE}
+# Set up empty dataframe
+grid.nn.d <- NULL
+
+# Define height difference function
+altDiff <- function(x){x[2] - x[1]}
+
+# Factor
+factor <- 1.5
+
+# Loop over gridpoints
+for (i in 1:nrow(grid.nn.i)){
+  # Get coordinates
+  from <- grid[i, ]@coords
+  to <- grid[grid.nn.i[i, ], ]@coords
+  
+  # Extract area around point of dhm
+  sector <- crop(dhm100, c(from[1]-factor*gridRes, from[1]+factor*gridRes,
+                           from[2]-factor*gridRes, from[2]+factor*gridRes))
+  
+  # Transition for the height layer in 8 directions
+  hd <- transition(sector, altDiff, 8, symm=FALSE)
+  # Correct the layer
+  slope <- geoCorrection(hd)
+  adj <- adjacent(sector, cells=1:ncell(sector), pairs=TRUE, directions=8)
+  # Copy size of transition layer
+  speed <- slope
+  # Implement condictance layer for tobler's hicker function
+  speed[adj] <- ((6 * exp(-3.5 * abs(slope[adj] + 0.05)))/3.6)
+  # Correct the layer
+  conductance <- geoCorrection(speed)
+  
+  # Calculate costs for the paths
+  dist <- costDistance(conductance, from, to)
+  
+  # Update grid.nn.i
+  grid.nn.d <- rbind(grid.nn.d, dist)
+}
+
+# Rename columns
+colnames(grid.nn.d) <- colnames(grid.nn.i)
+
+# Convert in one df
+len <- nrow(grid.nn.i)
+nn <- data.frame(seq(1, len), grid.nn.i[,1], grid.nn.d[,1])
+colnames(nn) <- c("ind1","ind2", "t")
+for (i in 2:n) {
+  nn2 <- data.frame(seq(1, len), grid.nn.i[,i], grid.nn.d[,i])
+  colnames(nn2) <- c("ind1","ind2", "t")
+  nn <- rbind(nn, nn2)
+}
+
+# Get distance between neighbors
+indices <- cbind(nn$ind1, nn$ind2)
+nn$dx <- grid.d[indices]
+
+# Extract height and population
+nn$h1 <- grid[nn$ind1,]$Height
+nn$h2 <- grid[nn$ind2,]$Height
+nn$p1 <- grid[nn$ind1,]$Population
+nn$p2 <- grid[nn$ind2,]$Population
+
+# Calculate mean slope between the points
+nn$m <- (nn$h1-nn$h2)/nn$dx
+
+# Reorder df
+nn <- nn[c("ind1", "ind2", "p1", "p2", "h1", "h2" ,"dx", "m", "t")]
+
+# Save nn as csv file
+write.csv(nn2, file = file.path(tmpDataFolder, "nn.csv"))
+```
+
+```{r GDistance plot, fig.align='center', fig.height=4, message=FALSE, warning=FALSE, echo=FALSE, fig.cap="Least cost paths to the k neighbors of an example point."}
+# Read the nn df in
+nn <- read.csv(file.path(tmpDataFolder, "nn.csv")) #, header = T)
+nn$X <- NULL
+
+# Define height difference function
+altDiff <- function(x){x[2] - x[1]}
+
+# Factor
+factor <- 1.5
+
+# Get coordinates
+i=1000
+from <- grid[i, ]@coords
+to <- grid[grid.nn.i[i, ], ]@coords
+
+# Extract area around point of dhm
+sector <- crop(dhm100, c(from[1]-factor*gridRes, from[1]+factor*gridRes,
+                         from[2]-factor*gridRes, from[2]+factor*gridRes))
+
+# Transition for the height layer in 8 directions
+hd <- transition(sector, altDiff, 8, symm=FALSE)
+# Correct the layer
+slope <- geoCorrection(hd)
+adj <- adjacent(sector, cells=1:ncell(sector), pairs=TRUE, directions=8)
+# Copy size of transition layer
+speed <- slope
+# Implement condictance layer for tobler's hicker function
+speed[adj] <- ((6 * exp(-3.5 * abs(slope[adj] + 0.05)))/3.6)
+# Correct the layer
+conductance <- geoCorrection(speed)
+
+# Calculate least cost paths
+shortest <- shortestPath(conductance, from, to, "SpatialLines")
+
+# Convert Spatial Lines into SLDF and fortify
+shortest <- SpatialLinesDataFrame(
+    shortest, data = data.frame(ID = seq(1,length(shortest))))
+shortest <- fortify(shortest, region="ID")
+
+#creating hillshading from DHM: 
+slope_sector = terrain(sector, opt='slope')
+aspect_sector = terrain(sector, opt='aspect')
+hs = hillShade(slope_sector, aspect_sector, angle=70, direction=270)
+
+#   Convert rasters to dataframes for plotting with ggplot
+hdf <- rasterToPoints(hs);
+hdf <- data.frame(hdf)
+colnames(hdf) <- c("X","Y","Hill")
+hdf$Hill <- 1-hdf$Hill
+ddf <- rasterToPoints(sector);
+ddf <- data.frame(ddf)
+colnames(ddf) <- c("X","Y","DEM")
+
+# Plot
+p <- ggplot() +
+  coord_fixed(ratio = 1) +
+  xlab("Easting") +
+  ylab("Northing") +
+  geom_raster(data=ddf,aes(X,Y,fill=DEM), interpolate=TRUE)+
+  scale_fill_gradientn(name="Altitude",colours = terrain.colors(4, alpha = 1))+
+  guides(fill = guide_colorbar()) +
+  geom_tile(data=hdf, aes(X,Y,alpha=Hill), fill = "grey20") +
+  scale_alpha(range = c(0, 0.6)) +
+  #scale_x_continuous(name=expression(paste("Longitude (",degree,")")),
+    #limits=c(-4,2),expand=c(0,0)) +
+  #scale_y_continuous(name=expression(paste("Latitude (",degree,")")),
+    #limits=c(4,12),expand=c(0,0)) +
+  geom_path(data = shortest,
+          aes(x = long, y = lat, group=group),
+          color = outlinecol, 
+          size = 0.7,
+          alpha = 0.6) +
+  geom_point(data =  as.data.frame(from),
+             aes(Easting, Northing), size=3.5, shape=13, alpha = 1, color="black", fill="red") +
+  geom_point(data =  as.data.frame(to),
+             aes(Easting, Northing), size=2, shape=3, alpha = 1)
+print(p)
+```
+Because searching least cost paths on such a huge (global) transition layer is computationally expensive, multiple local (smaller) transition layers are generated with a moving window approach. By doing so for every grid point and its $k$ neighbors, a local transition layer is generated and the walking time for the least costs paths to the neighbors is computed locally.
+```{r Walking times plot, fig.align='center', fig.width=4.5, fig.height=2, message=FALSE, echo=FALSE, fig.cap="Histogram of the extracted walking times for the grid neighbors."}
+# Plot
+ggplot(nn, aes(t/(60*60))) +
+  geom_histogram(binwidth = 0.01) +
+  ylab("Frequency") +
+  xlab("Walking Time [h]")
+```
+
+After the walking time extraction, one big data frame, containing the edges (*ind1*, *ind2*) is created and completed with population values (*p1*, *p2*) for the start and the end point of each edge. Just for completeness the heights (*h1*, *h2*) and the euclidean distance (*dx*) between the points is added. Then the mean slope (*m*) for each edge is calculated. It is important to state that the edges appear twice in the data frame, this is to represent the two possible directions of the edges.
+
+## Gravity Index
+To get a meaningful index of the linguistic influence of two neighbors on each other, a concept from Trudgill [-@Trudgill1974] is applied:
+$$I_{ij}=\frac{P_i P_j}{d_{ij}^2}\times\frac{P_i}{P_i+P_j}$$
+$P_i$ stands for the population size of the data point $i$ (community) and $d_{ij}$ is representing the walking time between the two data points $i$ and $j$.
+
+```{r Gravity index, message=FALSE, echo=FALSE}
+# Gravity Index
+s=1
+nn$I <- (s * (nn$p1*nn$p2)/(nn$t^2) * ((nn$p1)/(nn$p1+nn$p2)))
+
+# Normalize Data
+nn$I = (nn$I-min(nn$I))/(max(nn$I)-min(nn$I))
+#nn$I = nn$I*1000000
+
+# Grid specfic data table
+knitr::kable(round(head(nn[order(-nn$p1),]),3), caption = "Some example edges of neighbors in the grid, showing the attribute values.", row.names = FALSE)
+```
+
+## Weighted Asymmetric Adjacency Matrix
+The edge list and the gravity index, representing linguistic influence of two neighbors on each other, is now filled into an weighted asymmetric adjacency matrix. This is done by creating an empty $m \times n$ matrix and then using *ind1* as $m$ and *ind2* as $n$ to fill in the $I$ (gravity index) values.
+```{r Weighted WAAM, fig.align='center', fig.height=3, message=FALSE, echo=FALSE, fig.cap="Weighted (linguistic influence) asymmetric adjacency matrix of the grid neighbours. The values in the plot have a logarithmic scale."}
+# Create WAAMatrix
+adj <- matrix(0, nrow=nrow(grid), ncol=nrow(grid))
+indices <- cbind(nn$ind1, nn$ind2)
+adj[indices] <- nn$I
+
+# Plot using rasterVis
+levelplot(apply(t(log(adj[1000:1200, 1000:1200]+1)),1,rev), scales=list(draw=TRUE), colorkey=TRUE,
+          par.settings=GrTheme(),
+          #names.attr=paste0('MNF-', 1:8),
+          #main="Adjacency Matrix",
+          xlab=NULL,
+          ylab=NULL)
+```
+
+\newpage
+
+# Spatial Regularization of the Classification Map
+
+## Markov Random Field
+The Markov Random Field (MRF) is a statistical method based on a Bayesian approach, which considers spatial dependencies in the decision rule, instead of integrating them in the classification stage. The optimization is done by Iterated Conditional Modes (ICM), which is defined over the minimum energy per data point:
+$$y^* = \underset{y\in C}{\operatorname{argmin}} - [\sum\limits_{i=1}^n\log(p(y_i|x_i)) + \beta\sum\limits_{i=1}^n\sum_{j\in N_i}V(y_i,y_j)]$$
+In the MRF the probabilities of the pixel-wise SVM classification $p(y_i|x_i)$ are used as starting point (a priori) for a spatial regularization of the classification map. The spatial dependencies are represented by the term $V(y_i,y_j)$. Because it is not possible to include all the surrounding data points into the decision rule, the influence is limited to local neighborhoods $N$ (also called cliques). In our case the $N$ is given by the nearest grid neighbors. The minima of the global energy is approached by minimizing the local energies in the MRF. A new classification map is obtained by taking the most probable class affiliation $y^*$ (of all possible classes $y\in C$) based on the posterior probabilities of the spatial regularization. [@Besag1986]. 
+
+The MRF is constructed using the following components as starting point: (I) probabilities - These are extracted from a prediction done by the SVM trained in the previous part; (II) weighted edges - These are given by the asymmetric adjacency matrix created of the nearest grid neighbors and the index of linguistic influence $I_{ij}$ and (III) the class affiliation of the data points given through the SVM prediction.
+
+## Energy Function
+To minimize the global energy of the MRF, there has to be defined an energy function for the local energies of the data points. In this project the energy function definition leans on a paper of @Tarabalka2010. So the the local energy of a data point is defined as:
+$$U(x_{i})=U_{linguistic}(x_{i}) + U_{spatial}(x_{i})$$
+The linguistic energy term only uses the SVM probabilities and is computed as:
+$$U_{linguistic}(x_{i}) = -ln\{P(x_i|L_i) \}$$
+And the spatial energy term is calculated using the following equation: 
+$$U_{spatial}(x_{i}) = \sum_{x_j\in N_i}\beta I_{ij}(1-\delta(L_i,  L_j))$$
+where $\delta(.,.)$ is the Kronecker delta function ($\delta(a, b) = 1$ if $a =b$, and $\delta(a, b) = 0$ otherwise) and $\beta$ is a parameter that controls the importance of the spatial versus spectral energy terms. $I_{ij}$ is the index of the linguistic influence of between two neighbors, defined in the a previous section.
+
+\newpage
+
+## Minimizing the Global Energy of the MRF
+The global energy of the MRF is defined as the sum of all local energies:
+$$E = \sum\limits_{i=1}^NU(x_{i})$$
+The global energy is minimized through the iterative minimization of the local energies. The iterative minimization of the local energies is performed by an adoption of the Metropolis algorithm from @Metropolis1953, based on stochastic relaxation and annealing described by @Geman1984.
+Per iteration a randomly chosen data point is assigned to a random class. Based on the observed change $\Delta U = U^{new}(x_{i})-U^{old}(x_{i})$ of the local energy, the random class assignment is either kept or discarded. If $\Delta U$ is negative, the new class assignment is accepted. To avoid the problem of converging to a local minima, also some class changes with a positive $\Delta U$ are allowed. But these are only accepted with the probability $p = exp(\frac{-\Delta U}{T})$ (stochastic relaxation), where $T$ (temperature) is a control parameter, which is getting smaller with every iteration (annealing) and thus allows fewer class changes with positive $\Delta U$ values [@Tarabalka2010].
+
+The parameter $\beta$ is set to 1'000'000 to increase the influence of the spatial energy term. The value of this parameter has great influence on the final results.
+
+```{r Minimize Energy,  eval=FALSE, echo=FALSE}
+# Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
+it_lim <- 50000
+beta <- 1000000
+
+# Set up storing values and counter
+gridSVMpredict <- numeric(ncol(grid))
+gridMRFpredict <- numeric(ncol(grid))
+gridChanged <- numeric(ncol(grid))
+phenNum <- 1
+
+# Set Up dataframe for the global energy
+E_global <- data.frame(Iteration=integer(), Energy=double(), 
+                       Temperature=double(), Phenomena=character())
+
+E_global$Phenomena <- as.character(E_global$Phenomena)
+
+# Loop over phenomenas and perform spatial regularization
+for (p in 6:ncol(dat)){
+  # Set Temperature
+  temp <- 2
+  
+  phen <- data.frame(dat$Easting, dat$Northing, dat[ ,p])
+  colnames(phen) <- c('Easting','Northing','DominantVar')
+  
+  # Train SVM
+  bestGamma <- bestParameters$Gamma[phenNum]
+  bestC <- bestParameters$Cost[phenNum]
+  svm_model <- svm(DominantVar~., data = phen, probability=TRUE,
+             cost = bestC, gamma = bestGamma, cross = 10)
+
+  svm_model <- svm(DominantVar~., data = phen, probability=TRUE)
+  
+  # Linguistic Energy Term - Extracting the SVM probalitites
+  pred <- predict(svm_model, as.data.frame(grid)[c("Easting", "Northing")], probability=TRUE)
+  
+  probs <- attr(pred, "probabilities")
+  probs <- probs[,c(sort(colnames(probs)))] # Change class/column order ASC
+  U_ling <- -log(probs)
+  
+  # Store the orginal values
+  gridSVMpredict <- cbind(gridSVMpredict, pred)
+  grid$SVM <- pred
+  
+  # Create new variable MRF_pred where the classes change.
+  MRF_pred <- pred
+  classes <- as.numeric(levels(MRF_pred))
+  
+  # Calculate Start Value
+  E_local <- array(0,length(MRF_pred))
+  for (i in 1:length(MRF_pred)) {
+    U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
+    E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp
+  }
+  E_global[nrow(E_global)+1,]$Iteration <- 0
+  E_global[nrow(E_global),]$Energy <- sum(E_local)
+  E_global[nrow(E_global),]$Temperature <- temp
+  E_global[nrow(E_global),]$Phenomena <- names[p]
+  
+  # Start iterating
+  for (t in 1:it_lim) {
+    # Choose random data point
+    rind <- sample(1:length(MRF_pred), 1)
+    origclass <- MRF_pred[rind]
+    
+    # Change random the class
+    rclass <- sample(classes[classes != origclass], 1)
+    
+    # Calculate original local energy
+    E_local_old <- U_ling[rind, MRF_pred[[rind]]] + sum(adj[rind,][MRF_pred != MRF_pred[[rind]]] * beta)
+    
+    # Calculate new local energy
+    E_local_new <- U_ling[rind, colnames(U_ling)==as.character(rclass)] + 
+      sum(adj[rind,][MRF_pred != rclass] * beta)
+    
+    # OLD: SAVED line above... index out of range if classes arent a sequence!!!
+    # E_local_new <- U_ling[rind, rclass] + sum(adj[rind,][MRF_pred != rclass] * beta)
+    
+    # Define delta U
+    dU <- E_local_new - E_local_old
+    
+    # Check if Energy is smaller
+    if (dU < 0) {
+      # Change Class
+      MRF_pred[rind] <- rclass
+      
+      # Calculate global energy
+      E_local <- array(0,length(MRF_pred))
+      for (i in 1:length(MRF_pred)) {
+        U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
+        E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp
+      }
+      # Update global Energy
+      E_global[nrow(E_global)+1,]$Iteration <- t
+      E_global[nrow(E_global),]$Energy <- sum(E_local)
+      E_global[nrow(E_global),]$Temperature <- temp
+      E_global[nrow(E_global),]$Phenomena <- names[p]
+      
+    } else {
+      prob <- exp(-dU/temp)
+      #decision <- FALSE
+      decision <- as.logical(rbinom(1, 1, prob))
+      if (decision) {
+        MRF_pred[rind] <- rclass
+        #temp <- temp * 0.95
+        # Calculate global energy
+        E_local <- array(0,length(MRF_pred))
+        for (i in 1:length(MRF_pred)) {
+          U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
+          E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp
+        }
+        # Update global Energy
+        E_global[nrow(E_global)+1,]$Iteration <- t
+        E_global[nrow(E_global),]$Energy <- sum(E_local)
+        E_global[nrow(E_global),]$Temperature <- temp
+        E_global[nrow(E_global),]$Phenomena <- names[p]
+      }
+    }
+    # Lower temperature
+    if (t%%100 == 0){
+      temp <- temp * 0.98
+      cat(t)
+      cat("-")
+    }
+  }
+  
+  # Store MRF prediciton on grid in matrix
+  gridMRFpredict <- cbind(gridMRFpredict, MRF_pred)
+  grid$MRF <- MRF_pred
+  
+  # Extract changes in the MRF
+  ClassChanged <- as.numeric(!grid$SVM==grid$MRF)
+  gridChanged <- cbind(gridChanged, ClassChanged)
+  
+  # Increase the phenomena counter
+  cat(names[p])
+  cat(": Spatial regularization done.\n")
+  phenNum <- phenNum + 1
+}
+
+#Delete empty first row
+gridSVMpredict <- gridSVMpredict[,-1]
+gridMRFpredict <- gridMRFpredict[,-1]
+gridChanged <- gridChanged[,-1]
+
+# Change columnames
+colnames(gridSVMpredict) <- sapply(X=names[6:length(names)], FUN=paste, "SVM", sep="_")
+colnames(gridMRFpredict) <- sapply(X=names[6:length(names)], FUN=paste, "MRF", sep="_")
+colnames(gridChanged) <- sapply(X=names[6:length(names)], FUN=paste, "Change", sep="_")
+
+# Put all together
+results <- cbind(as.data.frame(grid)[c("Easting", "Northing", "Height", "Population")], gridSVMpredict, gridMRFpredict, gridChanged)
+results <- data.frame(results)
+
+# Process results and save them
+write.csv(results, file = file.path(resultsDataFolder, "finalResults.csv"))
+write.csv(E_global, file = file.path(resultsDataFolder, "globalEnergies.csv"))
+```
+
+```{r load final results, echo=FALSE}
+grid <- read.csv(file.path(resultsDataFolder, "finalResults.csv"))
+grid <- grid[,-1]
+gridNames <- colnames(grid)
+grid[gridNames[5:ncol(grid)]] <- lapply(grid[gridNames[5:ncol(grid)]], factor)
+
+globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergies.csv"))
+globalEnergies <- globalEnergies[,-1]
+```
+
+
+```{r Plot energies, echo=FALSE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the global energies (in logarithmic scale) during the iterative minimization of the local energies."}
+# Basic line plot with points
+p <- ggplot(data=globalEnergies, aes(x=Iteration, y=log(Energy), group = Phenomena)) +
+  geom_line() +
+  theme(legend.position="none")
+  #geom_point()
+
+print(p)
+```
+
+
+```{r Plot temperature, eval=TRUE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the temperatures during the iterative minimization of the local energies (annealing)."}
+# Basic line plot with points
+p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Temperature, group = Phenomena)) +
+  geom_line() +
+  theme(legend.position="none")
+  #geom_point()
+
+print(p)
+```
+
+\newpage
+# Results
+```{r plot phenomena function, eval=TRUE, fig.align='center', echo=FALSE}
+# In this section the classification results of the spatial regularization applied on each phenomena are presented. The changed grid data points are marked with black squares in the plots.
+plotPhen <- function(p) {
+  g <- ggplot() +
+    coord_fixed(ratio = 1) +
+    ggtitle(paste("Phenomena", p)) +
+    xlab("Easting") +
+    ylab("Northing") +
+    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+    #geom_tile(data=hdfCH, aes(X,Y,alpha=Hill), fill = "grey20") +
+    scale_alpha(guide = 'none') +
+    geom_polygon(data = lakes,
+            aes(x = long, y = lat, group = group),
+            fill = lakecol, size = .2, alpha=0.3) +
+    geom_point(data =  grid, 
+               aes(Easting, Northing, colour = eval(parse(text = paste("grid$", p, "_MRF", sep="")))), 
+               size=1.9, alpha=0.5, shape=15) +
+    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
+               aes(Easting, Northing), size=2, shape=0) +
+     scale_shape(solid = FALSE) +
+    geom_path(data = outline,
+            aes(x = long, y = lat, group = group),
+            color = outlinecol, size = .2) +
+    labs(color = "Class")
+  print(g)
+}
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 1
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 2
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 3
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 4
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 5
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 6
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 7
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 8
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 9
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 10
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 11
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 12
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 1
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 13
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 14
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 15
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 16
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 17
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 18
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 19
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 20
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 21
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 22
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 23
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 24
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 25
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 26
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 27
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 28
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 29
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 30
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 31
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 32
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 33
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 34
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 35
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 36
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 37
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 38
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 39
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 40
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 41
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 42
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 43
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 44
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 45
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 46
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 47
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 48
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 49
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 50
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 51
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 52
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 53
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 54
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 55
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 56
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 57
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 58
+plotPhen(names[(i+5)])
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+i <- 59
+plotPhen(names[(i+5)])
+```
+
+\newpage
