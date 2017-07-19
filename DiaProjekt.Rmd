@@ -471,8 +471,11 @@ for (i in 1:nrow(grid.nn.i)){
   to <- grid[grid.nn.i[i, ], ]@coords
   
   # Extract area around point of dhm
-  sector <- crop(dhm100, c(from[1]-factor*gridRes, from[1]+factor*gridRes,
-                           from[2]-factor*gridRes, from[2]+factor*gridRes))
+  sectorRange <- apply(to, 2, range)
+  sector <- crop(dhm100, c(sectorRange[1,1]-factor*gridRes,
+                           sectorRange[2,1]+factor*gridRes,
+                           sectorRange[1,2]-factor*gridRes,
+                           sectorRange[2,2]+factor*gridRes))
   
   # Transition for the height layer in 8 directions
   hd <- transition(sector, altDiff, 8, symm=FALSE)
@@ -491,6 +494,12 @@ for (i in 1:nrow(grid.nn.i)){
   
   # Update grid.nn.i
   grid.nn.d <- rbind(grid.nn.d, dist)
+  
+  # Print progress
+  if (t%%100 == 0){
+      cat(round(i/nrow(grid.nn.i),2))
+      cat("%-")
+  }
 }
 
 # Rename columns
@@ -527,24 +536,28 @@ write.csv(nn, file = file.path(tmpDataFolder, "nn.csv"))
 ```
 
 ```{r GDistance plot, fig.align='center', fig.height=4, message=FALSE, warning=FALSE, echo=FALSE, fig.cap="Least cost paths to the k neighbors of an example point."}
-# Read the nn df in
-nn <- read.csv(file.path(tmpDataFolder, "nn.csv")) #, header = T)
-nn$X <- NULL
+# !!!!!!!!!! UNCOMMMENT AFTERWARDS
+# # Read the nn df in
+# nn <- read.csv(file.path(tmpDataFolder, "nn.csv")) #, header = T)
+# nn$X <- NULL
 
 # Define height difference function
 altDiff <- function(x){x[2] - x[1]}
 
 # Factor
-factor <- 1.5
+factor <- 0.5
 
 # Get coordinates
-i=1000
+i=2000
 from <- grid[i, ]@coords
 to <- grid[grid.nn.i[i, ], ]@coords
 
 # Extract area around point of dhm
-sector <- crop(dhm100, c(from[1]-factor*gridRes, from[1]+factor*gridRes,
-                         from[2]-factor*gridRes, from[2]+factor*gridRes))
+sectorRange <- apply(to, 2, range)
+sector <- crop(dhm100, c(sectorRange[1,1]-factor*gridRes,
+                         sectorRange[2,1]+factor*gridRes,
+                         sectorRange[1,2]-factor*gridRes,
+                         sectorRange[2,2]+factor*gridRes))
 
 # Transition for the height layer in 8 directions
 hd <- transition(sector, altDiff, 8, symm=FALSE)
@@ -919,286 +932,6 @@ plotPhen(names[(i+5)])
 
 ```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
 i <- 4
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 5
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 6
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 7
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 8
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 9
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 10
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 11
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 12
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 1
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 13
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 14
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 15
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 16
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 17
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 18
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 19
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 20
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 21
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 22
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 23
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 24
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 25
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 26
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 27
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 28
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 29
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 30
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 31
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 32
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 33
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 34
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 35
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 36
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 37
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 38
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 39
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 40
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 41
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 42
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 43
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 44
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 45
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 46
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 47
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 48
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 49
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 50
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 51
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 52
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 53
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 54
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 55
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 56
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 57
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 58
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 59
 plotPhen(names[(i+5)])
 ```
 
