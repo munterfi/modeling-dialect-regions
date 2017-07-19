@@ -87,20 +87,15 @@ The population data of the Swiss communities in the year 2013 is provided by the
 The digital elevation model DHM200 of Swisstopo delivers the terrain height information used in this study.
 For visualization purposes the outline of Switzerland was produced by merging the polygons of all Swiss cantons (SwissBOUNDARIES3D) from Swisstopo. Then the outline of Switzerland was simplified to save processing time, when plotting.
 
-```{r Load data, echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
+```{r Load data, echo=FALSE, message=FALSE, warning=FALSE, eval=TRUE}
 # DATA
 # Open original dataset
 savfilename <- "Gesamttabelle_68phen_alleSprecher.sav"
 dat = read.spss(file.path(origDataFolder,savfilename), to.data.frame=TRUE)
 
-# Shrink for testing
-#dat <- dat[,1:23]
-
+# Extract phenomenas for the syntactical construct that is called ‘infinitival complementizer’
+dat <- dat[c("BFS_Nr", "i1_fz", "i1_zz", "i6_fz", "i6_zz", "i11_fz", "i11_zz", "iv14_fz", "iv14_zz")]
 phens <- colnames(dat)
-# IMPORTANT!!! IF ORIGINAL FILESIZE UNCOMmENT LINES BELOW
-phens[phens=="iv3es_ihm"] <- "iv3_es_ihm"
-phens[phens=="iv3ihm_es"] <- "iv3_ihm_es"
-colnames(dat) <- phens
 
 # Open Peter's file; coordinates
 csvfilename <- "I11_2Dregressed.csv"
@@ -123,16 +118,10 @@ datSample <- data.frame()
 for (i in 1:nrow(coordsBFS)) {
   candidates <- dat[dat$BFS_Nr==coordsBFS$BFS_Nr[i],]
   pick <- candidates[sample(nrow(candidates), size=8, replace=TRUE), ]
-  # IMPORTANT!!! IF ORIGINAL FILESIZE UNCOMNMENT LINES BELOW
-  colSums(pick[3:211], na.rm = TRUE, dims = 1)
-  #colSums(pick[3:23], na.rm = TRUE, dims = 1)
-  # IMPORTANT!!! IF ORIGINAL FILESIZE UNCOMmENT LINES BELOW
-  datSample <- rbind(datSample, colSums(pick[3:211], na.rm = TRUE, dims = 1))
-  #datSample <- rbind(datSample, colSums(pick[3:23], na.rm = TRUE, dims = 1))
+  colSums(pick[2:ncol(pick)], na.rm = TRUE, dims = 1)
+  datSample <- rbind(datSample, colSums(pick[2:ncol(pick)], na.rm = TRUE, dims = 1))
 }
-# IMPORTANT!!! IF ORIGINAL FILESIZE UNCOMmENT LINES BELOW
-colnames(datSample) <- phens[3:211]
-#colnames(datSample) <- phens[3:23]
+colnames(datSample) <- phens[2:length(phens)]
 
 # Extract phenomena names
 phens <- sapply(X = phens, FUN = strsplit, "_")
@@ -141,7 +130,7 @@ for (i in 1:length(phens)){
   phenNames[i] <- phens[[i]][1]
 }
 phenNames <- unique(phenNames)
-phenNames <- phenNames[3:length(phenNames)]
+phenNames <- phenNames[2:length(phenNames)]
 
 # Phenomena - col matching
 phens <- colnames(datSample)
@@ -149,7 +138,6 @@ phen2Col <- numeric(length(phens))
 for (i in 1:length(phens)) {
   phen2Col[i] <- which.max(rev(sapply(X=phenNames, FUN=pmatch, phens[i], 0 , FALSE)))
 }
-
 # Change back to the right order, which.max takes the first min, the last was needed
 phen2Col <- max(phen2Col)-phen2Col+1
 
@@ -180,44 +168,8 @@ colnames(dat) <- names
 # Create factors from columns
 dat[names[6:ncol(dat)]] <- lapply(dat[names[6:ncol(dat)]], factor)
 
-# Remove phenomenas which only show one variant or less than 90% variation
-n <- nrow(dat)
-varLimit <- n * 0.98
-toRemove <- character()
-toRemoveReason <- character()
-for (i in 6:ncol(dat)){
-  # Check for levels
-  if (length(levels(dat[ ,i]))<=1) {
-    toRemove <- c(toRemove, names[i])
-    toRemoveReason <- c(toRemoveReason, "No variance")
-    # cat(names[i])
-    # cat(" removed - no variance\n")
-  } else {
-    # Check for enough variance
-    test <- summary(dat[,i])
-    for (j in 1:length(test)){
-      if(test[j]>varLimit){
-            toRemove <- c(toRemove, names[i])
-            toRemoveReason <- c(toRemoveReason, "Too few variance")
-            # cat(names[i])
-            # cat(" removed - to few variance\n")
-            next
-      }
-    }
-  }
-}
-
-dat[toRemove] <- NULL
-names <- colnames(dat)
-phenNames <- names[6:length(names)]
-
-# Prepare table
-removed <- data.frame(toRemove, toRemoveReason)
-colnames(removed) <- c("Phenomena", "Reason")
-
 # Save process data as csv file
 write.csv(dat, file = file.path(resultsDataFolder, "randomSampling.csv"))
-write.csv(removed, file = file.path(resultsDataFolder, "removedPhenomena.csv"))
 ```
 
 ```{r Load geodata, echo=FALSE, message=FALSE, warning=FALSE}
@@ -233,9 +185,9 @@ outline <- fortify(outline)
 outlinecol <- "dimgray"
 
 # Load CH oultine and the multiplot function
-lakes <- readOGR(geoDataFolder, "Lakes_dissolve_simplify", verbose=FALSE)
-proj4string(lakes) <- CH1903
-lakes <- fortify(lakes)
+lakes_poly <- readOGR(geoDataFolder, "Lakes_dissolve_simplify", verbose=FALSE)
+proj4string(lakes_poly) <- CH1903
+lakes <- fortify(lakes_poly)
 lakecol <- "mediumblue"
 
 # Load downsampled DEM for plotting
@@ -257,7 +209,21 @@ hdfCH$Hill <- 1-hdfCH$Hill
 dhm100 <- raster(file.path(geoDataFolder, "dhm25_100m.tif"))
 proj4string(dhm100) <- CH1903
 
-# Load STATPOP13B_100m & cutoff last column
+# Convex hull of datapoints around Survey-Sites (Gemeinden)
+coordinates(coordsBFS) <- ~ X_coord + Y_coord
+proj4string(coordsBFS) <- CH1903
+convhull <- chull(x=coordsBFS@coords[,1],y=coordsBFS@coords[,2])
+p <- coordsBFS[c(convhull, convhull[1]), ]  # closed polygon
+convhull <- SpatialPolygons(list(Polygons(list(Polygon(p)), ID=1)))
+# Add buffer around convex hull
+convhull <- gBuffer(convhull, width = c(8000), byid = TRUE)
+
+# Crop dhm100 to convex hull
+dhm100 <- crop(dhm100, extent(convhull))
+dhm100 <- mask(dhm100, convhull)
+dhm100 <- mask(dhm100, lakes_poly, inverse=TRUE)
+
+# Load STATPOP13B_100m & cutoff last column (due to shift)
 statpop13B <- raster(file.path(geoDataFolder, "STATPOP13B_100m.tif"))
 proj4string(statpop13B) <- CH1903
 statpop13B[is.na(statpop13B)] <- 1
@@ -267,14 +233,6 @@ statpop13B <- trim(statpop13B)
 
 \newpage
 ## Overview
-```{r load dat again, echo=FALSE}
-dat <- read.csv(file.path(resultsDataFolder, "randomSampling.csv")) #, header = T)
-dat$X <- NULL
-# Create factors from columns
-names <- colnames(dat)
-dat[names[6:ncol(dat)]] <- lapply(dat[names[6:ncol(dat)]], factor)
-```
-
 ```{r Overview plot 1, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena i1. The point size represents the number of participants per survey site."}
 p <- qplot() +
   coord_fixed(ratio = 1) +
@@ -290,12 +248,11 @@ p <- qplot() +
   geom_path(data = outline, 
             aes(x = long, y = lat, group = group, size = Population),
             color = outlinecol, size = .2)
-  # + ggtitle("Overview Plot")
 
 print(p)
 ```
 
-```{r Overview plot 2, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena iv17. The point size represents the number of participants per survey site."}
+```{r Overview plot 2, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena iv6. The point size represents the number of participants per survey site."}
 p <- qplot() +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
@@ -306,35 +263,64 @@ p <- qplot() +
           aes(x = long, y = lat, group = group),
           fill = lakecol, size = .2, alpha=0.3) +
   geom_point(data=dat, aes(x = Easting, y = Northing,
-           size=Count, colour=iv17), alpha=0.8) +
+           size=Count, colour=i6), alpha=0.8) +
   geom_path(data = outline,
             aes(x = long, y = lat, group = group, size = Population),
             color = outlinecol, size = .2)
-  # + ggtitle("Overview Plot")
+
+print(p)
+```
+
+```{r Overview plot 3, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena i11. The point size represents the number of participants per survey site."}
+p <- qplot() +
+  coord_fixed(ratio = 1) +
+  xlab("Easting") +
+  ylab("Northing") +
+  geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+  scale_alpha(guide = 'none') +
+  geom_polygon(data = lakes,
+          aes(x = long, y = lat, group = group),
+          fill = lakecol, size = .2, alpha=0.3) +
+  geom_point(data=dat, aes(x = Easting, y = Northing,
+           size=Count, colour=i11), alpha=0.8) +
+  geom_path(data = outline,
+            aes(x = long, y = lat, group = group, size = Population),
+            color = outlinecol, size = .2)
+
+print(p)
+```
+
+```{r Overview plot 4, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena iv14. The point size represents the number of participants per survey site."}
+p <- qplot() +
+  coord_fixed(ratio = 1) +
+  xlab("Easting") +
+  ylab("Northing") +
+  geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+  scale_alpha(guide = 'none') +
+  geom_polygon(data = lakes,
+          aes(x = long, y = lat, group = group),
+          fill = lakecol, size = .2, alpha=0.3) +
+  geom_point(data=dat, aes(x = Easting, y = Northing,
+           size=Count, colour=iv14), alpha=0.8) +
+  geom_path(data = outline,
+            aes(x = long, y = lat, group = group, size = Population),
+            color = outlinecol, size = .2)
 
 print(p)
 ```
 
 ```{r Overview table, echo=FALSE}
-knitr::kable(head(dat[ ,1:14],5), caption = "Structure of the processed data set (random sampling & majority vote).")
+knitr::kable(head(dat,5), caption = "Structure of the processed data set (random sampling & majority vote).")
 ```
 
 Table 1 shows the structure of the processed data set. Each community is represented as a data point, which has a row in the table. The phenomenas are representend by the majority vote (dominant variant) of the random sampling in a particular community.
 
-```{r Removed table, echo=FALSE}
-removed <- read.csv(file.path(resultsDataFolder, "removedPhenomena.csv")) #, header = T)
-removed$X <- NULL
-
-knitr::kable(removed, caption = "Removed phenomenas, due to missing variance.")
-```
-
 \newpage
-
 # Support Vector Machine
 ## Parameter Selection
 To select the best parameters for the training of the SVM with a radial basis function (RBF) kernel a *Grid Search* is performed. The aim is to find the best combination of gamma and cost based on a previously given selection of possible values for each parameter. This step is repeatedly for every linguistic phenomena and its corresponding data record. The grid search is performed by applying the `tune.svm()` function from the *e1071* package. In the following table, the best parameters for the training of a SVM on this data set, found by a grid search, are listed [@Karatzoglou2006].
 
-```{r grid search, fig.align='center', echo=FALSE, eval=FALSE}
+```{r grid search, fig.align='center', echo=FALSE, eval=TRUE}
 # Set up gammas to consider
 gammalist <- c(0.1, 0.5, 1, 1.5, 2)
 bestParameters <- numeric(4)
@@ -362,12 +348,7 @@ colnames(bestParameters) <- c("Gamma", "Cost", "Error", "Dispersion")
 write.csv(bestParameters, file = file.path(resultsDataFolder, "SVMParameters.csv"))
 ```
 
-```{r load tmp files SVM, echo=FALSE}
-bestParameters <- read.csv(file.path(resultsDataFolder, "SVMParameters.csv")) #, header = T)
-
-rownames(bestParameters) <- bestParameters$X
-bestParameters$X <- NULL
-
+```{r print best parameters SVM, echo=FALSE}
 knitr::kable(round(bestParameters,3), caption = "The best parameters from grid search.", row.names=TRUE)
 ```
 
@@ -379,10 +360,10 @@ With the evaluated parameters from the previous section, a SVM is trained includ
 # Spatial Context
 ## Setup Grid
 A regular grid of data points is expanded over the area of Switzerland. The extent is taken from the outline of Switzerland from SwissBOUNDARIES (Swisstopo).
-```{r Setup grid, fig.align='center', echo=FALSE, message=FALSE, message=FALSE, fig.cap="Regular grid expanded over the area of Switzerland."}
+```{r Setup grid, fig.align='center', echo=FALSE, message=FALSE, fig.cap="Regular grid over the extent the convex hull."}
 # Create grid of the size of CH
-gridRes <- 5000 # Resolution in meters
-gridRange <- apply(outline[c("long", "lat")], 2, range)
+gridRes <- 2000 # Resolution in meters
+gridRange <- apply(convhull@polygons[[1]]@Polygons[[1]]@coords, 2, range)
 dx <- gridRange[2, 1]-gridRange[1, 1]
 dy <- gridRange[2, 2]-gridRange[1, 2]
 xres <- dx/gridRes
@@ -402,22 +383,8 @@ Resolution <- as.vector(c(xres, yres))
 PixelSize <- as.vector(c(gridRes, gridRes))
 gridInfo <- data.frame(Min, Max, Resolution, PixelSize)
 rownames(gridInfo) <- c("Easting","Northing")
-knitr::kable(round(gridInfo,1), caption = "The extent and resolution of the expanded grid.")
+knitr::kable(round(gridInfo,1), caption = "The extent and resolution of the grid.")
 
-# p <-   ggplot() +
-#   coord_fixed(ratio = 1) +
-#   xlab("Easting") +
-#   ylab("Northing") +
-#   geom_point(data =  as.data.frame(grid),
-#              aes(Easting, Northing), size=0.7, shape=3, alpha = 0.6) +
-#   geom_path(data = outline,
-#           aes(x = long, y = lat, group = group),
-#           color = outlinecol, size = .2)
-# print(p)
-```
-
-By applying the `extract()` function from the *raster* package on the grid data points and the data layers of the population *STATPOP13* and the height *DHM25_100m* the values at the grid data points position are extracted.
-```{r Process grid data points, fig.align='center', echo=FALSE}
 # Extract height of points
 grid$Height <- extract(dhm100, grid)
 # Delete Gridpoints outside the DHM (Switzerland)
@@ -425,8 +392,31 @@ grid <- grid[!is.na(grid$Height),]
 # Extract Population
 grid$Population <- extract(statpop13B, grid)
 
-# Grid specfic data table
-#knitr::kable(round(head(as.data.frame(grid[order(-grid$Population),]),3),1), caption = "Overview of the #processed grid data points.", row.names = FALSE)
+p <- qplot() +
+  coord_fixed(ratio = 1) +
+  xlab("Easting") +
+  ylab("Northing") +
+  geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+  scale_alpha(guide = 'none') +
+  geom_polygon(data = lakes,
+          aes(x = long, y = lat, group = group),
+          fill = lakecol, size = .2, alpha=0.3) +
+  geom_point(data =  as.data.frame(grid),
+            aes(Easting, Northing), size=0.7, shape=3, alpha = 0.6) +
+  geom_path(data = outline,
+            aes(x = long, y = lat, group = group, size = Population),
+            color = outlinecol, size = .2)
+print(p)
+```
+
+By applying the `extract()` function from the *raster* package on the grid data points and the data layers of the population *STATPOP13* and the height *DHM25_100m* the values at the grid data points position are extracted.
+```{r Process grid data points, fig.align='center', echo=FALSE}
+# # Extract height of points
+# grid$Height <- extract(dhm100, grid)
+# # Delete Gridpoints outside the DHM (Switzerland)
+# grid <- grid[!is.na(grid$Height),]
+# # Extract Population
+# grid$Population <- extract(statpop13B, grid)
 ```
 
 ## Nearest Neighbors
@@ -455,13 +445,10 @@ xseq <- seq(-0.5, 0.5, by = 0.01)
 tobler <- data.frame(xseq, paths(xseq))
 colnames(tobler) <- c("m","v")
 
-# Apply Toblers function
-#nn$W <- sapply(X=nn$m, FUN = paths)
-
 # Plot
 ggplot(tobler, aes(x=atan(m), y=v)) +
     geom_line() +      # Use hollow circles
-    ylab("Velocity [km/h]") +
+    ylab("Velocity [m/s]") +
     xlab("Slope [°]")
 ```
 
@@ -536,7 +523,7 @@ nn$m <- (nn$h1-nn$h2)/nn$dx
 nn <- nn[c("ind1", "ind2", "p1", "p2", "h1", "h2" ,"dx", "m", "t")]
 
 # Save nn as csv file
-write.csv(nn2, file = file.path(tmpDataFolder, "nn.csv"))
+write.csv(nn, file = file.path(tmpDataFolder, "nn.csv"))
 ```
 
 ```{r GDistance plot, fig.align='center', fig.height=4, message=FALSE, warning=FALSE, echo=FALSE, fig.cap="Least cost paths to the k neighbors of an example point."}
