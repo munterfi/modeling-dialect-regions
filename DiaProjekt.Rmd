@@ -496,8 +496,8 @@ for (i in 1:nrow(grid.nn.i)){
   grid.nn.d <- rbind(grid.nn.d, dist)
   
   # Print progress
-  if (t%%100 == 0){
-      cat(round(i/nrow(grid.nn.i),2))
+  if (i%%100 == 0){
+      cat(round(100*i/nrow(grid.nn.i)))
       cat("%-")
   }
 }
@@ -536,10 +536,9 @@ write.csv(nn, file = file.path(tmpDataFolder, "nn.csv"))
 ```
 
 ```{r GDistance plot, fig.align='center', fig.height=4, message=FALSE, warning=FALSE, echo=FALSE, fig.cap="Least cost paths to the k neighbors of an example point."}
-# !!!!!!!!!! UNCOMMMENT AFTERWARDS
-# # Read the nn df in
-# nn <- read.csv(file.path(tmpDataFolder, "nn.csv")) #, header = T)
-# nn$X <- NULL
+# Read the nn df in
+nn <- read.csv(file.path(tmpDataFolder, "nn.csv")) #, header = T)
+nn$X <- NULL
 
 # Define height difference function
 altDiff <- function(x){x[2] - x[1]}
@@ -696,7 +695,7 @@ The parameter $\beta$ is set to 1'000'000 to increase the influence of the spati
 
 ```{r Minimize Energy,  eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 50000
+it_lim <- 500
 beta <- 1000000
 
 # Set up storing values and counter
