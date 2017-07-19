@@ -1,5 +1,5 @@
 # Modeling Dialect Regions in German-speaking Switzerland
-Generating continuous spatial surfaces for the manifestations of various linguistic phenomena in the Swiss-German language.
+Generating continuous spatial surfaces for the manifestations the 'infinitival complementizer' linguistic phenomena in the Swiss-German language (SADS phenomena I1, I6, I11 & IV14).
 
 The aim of this project is to develop a new approach to model linguistic regions and their borders. In order to study the spatial distribution of linguistic phenomena, concepts from Geography and GIScience are applied on a linguistic data set, which was collected in the project 'Syntactic Atlas of German-speaking Switzerland' (SADS) during the years 2000 till 2002. Techniques from machine learning, like the Support Vector Machine (SVM) and a spatial regularization of the classification map (MRF) are combined with other well-known geographic concepts (Tobler’s first law, hiking function and least cost paths) to create linguistic regions, which take the inherent spatial dependencies between the data points into account. Also a gravity model based index finds application to weight the linguistic influence of two neighbors on each other.
 
