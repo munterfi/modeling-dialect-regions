@@ -722,13 +722,14 @@ The parameter $\beta$ is set to 1'000'000 to increase the influence of the spati
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 500
+it_lim <- 200
 beta <- 1
 
 # Set up storing values and counter
 gridSVMpredict <- numeric(ncol(grid))
 gridMRFpredict <- numeric(ncol(grid))
 gridChanged <- numeric(ncol(grid))
+gridELocal <- numeric(ncol(grid))
 phenNum <- 1
 
 # Set Up dataframe for the global energy
@@ -854,6 +855,9 @@ for (p in 6:ncol(dat)){
   ClassChanged <- as.numeric(!grid$SVM==grid$MRF)
   gridChanged <- cbind(gridChanged, ClassChanged)
   
+  # Store local energies
+  gridELocal <- cbind(gridELocal, E_local)
+  
   # Increase the phenomena counter
   cat(names[p])
   cat(": Spatial regularization done.\n")
@@ -864,14 +868,16 @@ for (p in 6:ncol(dat)){
 gridSVMpredict <- gridSVMpredict[,-1]
 gridMRFpredict <- gridMRFpredict[,-1]
 gridChanged <- gridChanged[,-1]
+gridELocal <- gridELocal[,-1]
 
 # Change columnames
 colnames(gridSVMpredict) <- sapply(X=names[6:length(names)], FUN=paste, "SVM", sep="_")
 colnames(gridMRFpredict) <- sapply(X=names[6:length(names)], FUN=paste, "MRF", sep="_")
 colnames(gridChanged) <- sapply(X=names[6:length(names)], FUN=paste, "Change", sep="_")
+colnames(gridELocal) <- sapply(X=names[6:length(names)], FUN=paste, "Energy", sep="_")
 
 # Put all together
-results <- cbind(as.data.frame(grid)[c("Easting", "Northing", "Height", "Population")], gridSVMpredict, gridMRFpredict, gridChanged)
+results <- cbind(as.data.frame(grid)[c("Easting", "Northing", "Height", "Population")], gridSVMpredict, gridMRFpredict, gridChanged, gridELocal)
 results <- data.frame(results)
 
 # Process results and save them
@@ -890,6 +896,12 @@ proj4string(grid) <- CH1903
 inside <- !is.na(over(grid, outline_poly))
 grid <- data.frame(grid)
 grid <- grid[inside, ]
+
+# Normalize the local energies
+grid$i1_Energy <- -1*as.numeric(grid$i1_Energy)
+grid$i6_Energy <- -1*as.numeric(grid$i6_Energy)
+grid$i11_Energy <- -1*as.numeric(grid$i11_Energy)
+grid$iv14_Energy <- -1*as.numeric(grid$iv14_Energy)
 
 globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergies.csv"))
 globalEnergies <- globalEnergies[,-1]
@@ -936,8 +948,10 @@ plotPhen <- function(p) {
             aes(x = long, y = lat, group = group),
             fill = lakecol, size = .2, alpha=0.3) +
     geom_point(data =  grid, 
-               aes(Easting, Northing, colour = eval(parse(text = paste("grid$", p, "_MRF", sep="")))), 
-               size=0.55, alpha=0.5, shape=15) +
+               aes(Easting, Northing, 
+                   colour = eval(parse(text = paste("grid$", p, "_MRF", sep=""))),
+                   alpha = eval(parse(text = paste("grid$", p, "_Energy", sep="")))), 
+               size=0.55, shape=15) +
     geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
                aes(Easting, Northing), size=0.6, shape=0, stroke = 0.1) +
      scale_shape(solid = FALSE) +
