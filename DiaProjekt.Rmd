@@ -718,17 +718,16 @@ $$E = \sum\limits_{i=1}^NU(x_{i})$$
 The global energy is minimized through the iterative minimization of the local energies. The iterative minimization of the local energies is performed by an adoption of the Metropolis algorithm from @Metropolis1953, based on stochastic relaxation and annealing described by @Geman1984.
 Per iteration a randomly chosen data point is assigned to a random class. Based on the observed change $\Delta U = U^{new}(x_{i})-U^{old}(x_{i})$ of the local energy, the random class assignment is either kept or discarded. If $\Delta U$ is negative, the new class assignment is accepted. To avoid the problem of converging to a local minima, also some class changes with a positive $\Delta U$ are allowed. But these are only accepted with the probability $p = exp(\frac{-\Delta U}{T})$ (stochastic relaxation), where $T$ (temperature) is a control parameter, which is getting smaller with every iteration (annealing) and thus allows fewer class changes with positive $\Delta U$ values [@Tarabalka2010].
 
-The parameter $\beta$ is set to 1'000'000 to increase the influence of the spatial energy term. The value of this parameter has great influence on the final results.
-
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 500
+it_lim <- 200000
 beta <- 1
 
 # Set up storing values and counter
-gridSVMpredict <- numeric(ncol(grid))
-gridMRFpredict <- numeric(ncol(grid))
-gridChanged <- numeric(ncol(grid))
+gridSVMpredict <- numeric(nrow(grid))
+gridMRFpredict <- numeric(nrow(grid))
+gridChanged <- numeric(nrow(grid))
+gridELocal <- numeric(nrow(grid))
 phenNum <- 1
 
 # Set Up dataframe for the global energy
@@ -742,6 +741,7 @@ for (p in 6:ncol(dat)){
   # Set Temperature
   temp <- 2
   
+  # Extract phenomenon "p"
   phen <- data.frame(dat$Easting, dat$Northing, dat[ ,p])
   colnames(phen) <- c('Easting','Northing','DominantVar')
   
@@ -789,14 +789,11 @@ for (p in 6:ncol(dat)){
     rclass <- sample(classes[classes != origclass], 1)
     
     # Calculate original local energy
-    E_local_old <- U_ling[rind, MRF_pred[[rind]]] + sum(adj[rind,][MRF_pred != MRF_pred[[rind]]] * beta)
+    E_local_old <- E_local[rind]
     
     # Calculate new local energy
     E_local_new <- U_ling[rind, colnames(U_ling)==as.character(rclass)] + 
       sum(adj[rind,][MRF_pred != rclass] * beta)
-    
-    # OLD: SAVED line above... index out of range if classes arent a sequence!!!
-    # E_local_new <- U_ling[rind, rclass] + sum(adj[rind,][MRF_pred != rclass] * beta)
     
     # Define delta U
     dU <- E_local_new - E_local_old
@@ -806,12 +803,17 @@ for (p in 6:ncol(dat)){
       # Change Class
       MRF_pred[rind] <- rclass
       
-      # Calculate global energy
-      E_local <- array(0,length(MRF_pred))
-      for (i in 1:length(MRF_pred)) {
-        U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
-        E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp
+      # Get the neighbours
+      adjInd <- which(adj[rind,] != 0)
+    
+      # Update local energy
+      E_local[rind] <- E_local_new
+      for (z in 1:length(adjInd)) {
+        w <- adjInd[z]
+        U_sp <- sum(adj[w,][MRF_pred != MRF_pred[[w]]] * beta)
+        E_local[w] <- U_ling[w, MRF_pred[[w]]] + U_sp
       }
+      
       # Update global Energy
       E_global[nrow(E_global)+1,]$Iteration <- t
       E_global[nrow(E_global),]$Energy <- sum(E_local)
@@ -819,18 +821,24 @@ for (p in 6:ncol(dat)){
       E_global[nrow(E_global),]$Phenomena <- names[p]
       
     } else {
+      # Probability of failure, in dependency to temperature
       prob <- exp(-dU/temp)
-      #decision <- FALSE
       decision <- as.logical(rbinom(1, 1, prob))
       if (decision) {
+        # Change class
         MRF_pred[rind] <- rclass
-        #temp <- temp * 0.95
-        # Calculate global energy
-        E_local <- array(0,length(MRF_pred))
-        for (i in 1:length(MRF_pred)) {
-          U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
-          E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp
+        
+        # Get the neighbours
+        adjInd <- which(adj[rind,] != 0)
+    
+        # Update local energy
+        E_local[rind] <- E_local_new
+        for (z in 1:length(adjInd)) {
+          w <- adjInd[z]
+          U_sp <- sum(adj[w,][MRF_pred != MRF_pred[[w]]] * beta)
+          E_local[w] <- U_ling[w, MRF_pred[[w]]] + U_sp
         }
+        
         # Update global Energy
         E_global[nrow(E_global)+1,]$Iteration <- t
         E_global[nrow(E_global),]$Energy <- sum(E_local)
@@ -839,7 +847,7 @@ for (p in 6:ncol(dat)){
       }
     }
     # Lower temperature
-    if (t%%100 == 0){
+    if (t%%5000 == 0){
       temp <- temp * 0.98
       cat(t)
       cat("-")
@@ -854,6 +862,9 @@ for (p in 6:ncol(dat)){
   ClassChanged <- as.numeric(!grid$SVM==grid$MRF)
   gridChanged <- cbind(gridChanged, ClassChanged)
   
+  # Store local energies
+  gridELocal <- cbind(gridELocal, E_local)
+  
   # Increase the phenomena counter
   cat(names[p])
   cat(": Spatial regularization done.\n")
@@ -864,14 +875,16 @@ for (p in 6:ncol(dat)){
 gridSVMpredict <- gridSVMpredict[,-1]
 gridMRFpredict <- gridMRFpredict[,-1]
 gridChanged <- gridChanged[,-1]
+gridELocal <- gridELocal[,-1]
 
 # Change columnames
 colnames(gridSVMpredict) <- sapply(X=names[6:length(names)], FUN=paste, "SVM", sep="_")
 colnames(gridMRFpredict) <- sapply(X=names[6:length(names)], FUN=paste, "MRF", sep="_")
 colnames(gridChanged) <- sapply(X=names[6:length(names)], FUN=paste, "Change", sep="_")
+colnames(gridELocal) <- sapply(X=names[6:length(names)], FUN=paste, "Energy", sep="_")
 
 # Put all together
-results <- cbind(as.data.frame(grid)[c("Easting", "Northing", "Height", "Population")], gridSVMpredict, gridMRFpredict, gridChanged)
+results <- cbind(as.data.frame(grid)[c("Easting", "Northing", "Height", "Population")], gridSVMpredict, gridMRFpredict, gridChanged, gridELocal)
 results <- data.frame(results)
 
 # Process results and save them
@@ -891,16 +904,22 @@ inside <- !is.na(over(grid, outline_poly))
 grid <- data.frame(grid)
 grid <- grid[inside, ]
 
+# Normalize the local energies
+grid$i1_Energy <- -1*as.numeric(grid$i1_Energy)
+grid$i6_Energy <- -1*as.numeric(grid$i6_Energy)
+grid$i11_Energy <- -1*as.numeric(grid$i11_Energy)
+grid$iv14_Energy <- -1*as.numeric(grid$iv14_Energy)
+
 globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergies.csv"))
 globalEnergies <- globalEnergies[,-1]
 ```
 
 ```{r Plot energies, echo=FALSE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the global energies (in logarithmic scale) during the iterative minimization of the local energies."}
 # Basic line plot with points
-p <- ggplot(data=globalEnergies, aes(x=Iteration, y=log(Energy), group = Phenomena)) +
+p <- ggplot(data=globalEnergies, aes(x=Iteration, y=log(Energy), color = Phenomena, group = Phenomena)) +
   theme_classic() + 
-  geom_line() +
-  theme(legend.position="none")
+  geom_line()
+  #theme(legend.position="none")
   #geom_point()
 
 print(p)
@@ -936,8 +955,11 @@ plotPhen <- function(p) {
             aes(x = long, y = lat, group = group),
             fill = lakecol, size = .2, alpha=0.3) +
     geom_point(data =  grid, 
-               aes(Easting, Northing, colour = eval(parse(text = paste("grid$", p, "_MRF", sep="")))), 
-               size=0.55, alpha=0.5, shape=15) +
+               aes(Easting, Northing, 
+                   colour = eval(parse(text = paste("grid$", p, "_MRF", sep=""))),
+                   alpha = eval(parse(text = paste("grid$", p, "_Energy",
+                                                   sep="")))), 
+               size=0.55, shape=15) +
     geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
                aes(Easting, Northing), size=0.6, shape=0, stroke = 0.1) +
      scale_shape(solid = FALSE) +
