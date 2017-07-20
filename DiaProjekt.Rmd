@@ -471,7 +471,7 @@ colnames(tobler) <- c("m","v")
 
 # Plot
 ggplot(tobler, aes(x=atan(m), y=v)) +
-    theme_bw() +
+    theme_classic() + 
     geom_line() +      # Use hollow circles
     ylab("Velocity [m/s]") +
     xlab("Slope [°]")
