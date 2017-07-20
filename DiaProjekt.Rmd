@@ -722,14 +722,14 @@ The parameter $\beta$ is set to 1'000'000 to increase the influence of the spati
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 200
+it_lim <- 100000
 beta <- 1
 
 # Set up storing values and counter
-gridSVMpredict <- numeric(ncol(grid))
-gridMRFpredict <- numeric(ncol(grid))
-gridChanged <- numeric(ncol(grid))
-gridELocal <- numeric(ncol(grid))
+gridSVMpredict <- numeric(nrow(grid))
+gridMRFpredict <- numeric(nrow(grid))
+gridChanged <- numeric(nrow(grid))
+gridELocal <- numeric(nrow(grid))
 phenNum <- 1
 
 # Set Up dataframe for the global energy
@@ -743,6 +743,7 @@ for (p in 6:ncol(dat)){
   # Set Temperature
   temp <- 2
   
+  # Extract phenomenon "p"
   phen <- data.frame(dat$Easting, dat$Northing, dat[ ,p])
   colnames(phen) <- c('Easting','Northing','DominantVar')
   
@@ -790,14 +791,11 @@ for (p in 6:ncol(dat)){
     rclass <- sample(classes[classes != origclass], 1)
     
     # Calculate original local energy
-    E_local_old <- U_ling[rind, MRF_pred[[rind]]] + sum(adj[rind,][MRF_pred != MRF_pred[[rind]]] * beta)
+    E_local_old <- E_local[rind]
     
     # Calculate new local energy
     E_local_new <- U_ling[rind, colnames(U_ling)==as.character(rclass)] + 
       sum(adj[rind,][MRF_pred != rclass] * beta)
-    
-    # OLD: SAVED line above... index out of range if classes arent a sequence!!!
-    # E_local_new <- U_ling[rind, rclass] + sum(adj[rind,][MRF_pred != rclass] * beta)
     
     # Define delta U
     dU <- E_local_new - E_local_old
@@ -807,12 +805,17 @@ for (p in 6:ncol(dat)){
       # Change Class
       MRF_pred[rind] <- rclass
       
-      # Calculate global energy
-      E_local <- array(0,length(MRF_pred))
-      for (i in 1:length(MRF_pred)) {
-        U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
-        E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp
+      # Get the neighbours
+      adjInd <- which(adj[rind,] != 0)
+    
+      # Update local energy
+      E_local[rind] <- E_local_new
+      for (z in 1:length(adjInd)) {
+        w <- adjInd[z]
+        U_sp <- sum(adj[w,][MRF_pred != MRF_pred[[w]]] * beta)
+        E_local[w] <- U_ling[w, MRF_pred[[w]]] + U_sp
       }
+      
       # Update global Energy
       E_global[nrow(E_global)+1,]$Iteration <- t
       E_global[nrow(E_global),]$Energy <- sum(E_local)
@@ -820,18 +823,24 @@ for (p in 6:ncol(dat)){
       E_global[nrow(E_global),]$Phenomena <- names[p]
       
     } else {
+      # Probability of failure, in dependency to temperature
       prob <- exp(-dU/temp)
-      #decision <- FALSE
       decision <- as.logical(rbinom(1, 1, prob))
       if (decision) {
+        # Change class
         MRF_pred[rind] <- rclass
-        #temp <- temp * 0.95
-        # Calculate global energy
-        E_local <- array(0,length(MRF_pred))
-        for (i in 1:length(MRF_pred)) {
-          U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
-          E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp
+        
+        # Get the neighbours
+        adjInd <- which(adj[rind,] != 0)
+    
+        # Update local energy
+        E_local[rind] <- E_local_new
+        for (z in 1:length(adjInd)) {
+          w <- adjInd[z]
+          U_sp <- sum(adj[w,][MRF_pred != MRF_pred[[w]]] * beta)
+          E_local[w] <- U_ling[w, MRF_pred[[w]]] + U_sp
         }
+        
         # Update global Energy
         E_global[nrow(E_global)+1,]$Iteration <- t
         E_global[nrow(E_global),]$Energy <- sum(E_local)
