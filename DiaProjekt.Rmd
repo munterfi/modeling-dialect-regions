@@ -1,7 +1,7 @@
 ---
 title: 'SynMod+: DiaProjekt (UFSP SpuR)'
 author: "Merlin Unterfinger, Geography UZH"
-date: 18 7 2017
+date: 20 7 2017
 output:
   rmarkdown::pdf_document:
     fig_caption: yes        
@@ -87,7 +87,7 @@ The population data of the Swiss communities in the year 2013 is provided by the
 The digital elevation model DHM200 of Swisstopo delivers the terrain height information used in this study.
 For visualization purposes the outline of Switzerland was produced by merging the polygons of all Swiss cantons (SwissBOUNDARIES3D) from Swisstopo. Then the outline of Switzerland was simplified to save processing time, when plotting.
 
-```{r Load data, echo=FALSE, message=FALSE, warning=FALSE, eval=TRUE}
+```{r Load data, echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
 # DATA
 # Open original dataset
 savfilename <- "Gesamttabelle_68phen_alleSprecher.sav"
@@ -179,9 +179,9 @@ CH1903 <- CRS("+init=epsg:21781")
 WGS84 <- CRS("+init=epsg:4326")
 
 # Load CH oultine and the multiplot function
-outline <- readOGR(geoDataFolder, "outlineCH", verbose=FALSE)
-proj4string(outline) <- CH1903
-outline <- fortify(outline)
+outline_poly <- readOGR(geoDataFolder, "outlineCH", verbose=FALSE)
+proj4string(outline_poly) <- CH1903
+outline <- fortify(outline_poly)
 outlinecol <- "dimgray"
 
 # Load CH oultine and the multiplot function
@@ -210,6 +210,8 @@ dhm100 <- raster(file.path(geoDataFolder, "dhm25_100m.tif"))
 proj4string(dhm100) <- CH1903
 
 # Convex hull of datapoints around Survey-Sites (Gemeinden)
+csvfilename <- "I11_2Dregressed.csv" # IF EVAL = TRUE ... COMMENT THIS LINE!
+coordsBFS <- read.csv(file.path(origDataFolder, csvfilename), header = T) # IF EVAL = TRUE ... COMMENT THIS LINE!
 coordinates(coordsBFS) <- ~ X_coord + Y_coord
 proj4string(coordsBFS) <- CH1903
 convhull <- chull(x=coordsBFS@coords[,1],y=coordsBFS@coords[,2])
@@ -217,11 +219,15 @@ p <- coordsBFS[c(convhull, convhull[1]), ]  # closed polygon
 convhull <- SpatialPolygons(list(Polygons(list(Polygon(p)), ID=1)))
 # Add buffer around convex hull
 convhull <- gBuffer(convhull, width = c(8000), byid = TRUE)
+# 
+# # Crop dhm100 to convex hull
+# dhm100 <- crop(dhm100, extent(convhull))
+# dhm100 <- mask(dhm100, convhull)
+# dhm100 <- mask(dhm100, lakes_poly, inverse=TRUE)
+# writeRaster(dhm100, filename=file.path(tmpDataFolder, "dhmCrop.tif"), format="GTiff", overwrite=TRUE)
 
-# Crop dhm100 to convex hull
-dhm100 <- crop(dhm100, extent(convhull))
-dhm100 <- mask(dhm100, convhull)
-dhm100 <- mask(dhm100, lakes_poly, inverse=TRUE)
+dhm100 <- raster(file.path(file.path(tmpDataFolder, "dhmCrop.tif")))
+proj4string(dhm100) <- CH1903
 
 # Load STATPOP13B_100m & cutoff last column (due to shift)
 statpop13B <- raster(file.path(geoDataFolder, "STATPOP13B_100m.tif"))
@@ -233,8 +239,17 @@ statpop13B <- trim(statpop13B)
 
 \newpage
 ## Overview
+```{r load dat again, echo=FALSE}
+dat <- read.csv(file.path(resultsDataFolder, "randomSampling.csv")) #, header = T)
+dat$X <- NULL
+# Create factors from columns
+names <- colnames(dat)
+dat[names[6:ncol(dat)]] <- lapply(dat[names[6:ncol(dat)]], factor)
+```
+
 ```{r Overview plot 1, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena i1. The point size represents the number of participants per survey site."}
 p <- qplot() +
+  theme_classic() +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -254,6 +269,7 @@ print(p)
 
 ```{r Overview plot 2, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena iv6. The point size represents the number of participants per survey site."}
 p <- qplot() +
+  theme_classic() +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -273,6 +289,7 @@ print(p)
 
 ```{r Overview plot 3, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena i11. The point size represents the number of participants per survey site."}
 p <- qplot() +
+  theme_classic() +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -292,6 +309,7 @@ print(p)
 
 ```{r Overview plot 4, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena iv14. The point size represents the number of participants per survey site."}
 p <- qplot() +
+  theme_classic() +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -320,7 +338,7 @@ Table 1 shows the structure of the processed data set. Each community is represe
 ## Parameter Selection
 To select the best parameters for the training of the SVM with a radial basis function (RBF) kernel a *Grid Search* is performed. The aim is to find the best combination of gamma and cost based on a previously given selection of possible values for each parameter. This step is repeatedly for every linguistic phenomena and its corresponding data record. The grid search is performed by applying the `tune.svm()` function from the *e1071* package. In the following table, the best parameters for the training of a SVM on this data set, found by a grid search, are listed [@Karatzoglou2006].
 
-```{r grid search, fig.align='center', echo=FALSE, eval=TRUE}
+```{r grid search, fig.align='center', echo=FALSE, eval=FALSE}
 # Set up gammas to consider
 gammalist <- c(0.1, 0.5, 1, 1.5, 2)
 bestParameters <- numeric(4)
@@ -330,7 +348,7 @@ for (i in 6:ncol(dat)){
   
   # Perform grid search
   tobj <- tune.svm(DominantVar~., data =  phen,
-                gamma = gammalist, cost = 10^(1:3))
+                gamma = gammalist, cost = 10^(1:4))
   
   # Save best parameters
   bestParameters <- rbind(bestParameters, tobj$performances[rownames(tobj$best.parameters),])
@@ -348,7 +366,12 @@ colnames(bestParameters) <- c("Gamma", "Cost", "Error", "Dispersion")
 write.csv(bestParameters, file = file.path(resultsDataFolder, "SVMParameters.csv"))
 ```
 
-```{r print best parameters SVM, echo=FALSE}
+```{r load tmp files SVM, echo=FALSE}
+bestParameters <- read.csv(file.path(resultsDataFolder, "SVMParameters.csv")) #, header = T)
+
+rownames(bestParameters) <- bestParameters$X
+bestParameters$X <- NULL
+
 knitr::kable(round(bestParameters,3), caption = "The best parameters from grid search.", row.names=TRUE)
 ```
 
@@ -393,6 +416,7 @@ grid <- grid[!is.na(grid$Height),]
 grid$Population <- extract(statpop13B, grid)
 
 p <- qplot() +
+  theme_classic() + 
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -402,7 +426,7 @@ p <- qplot() +
           aes(x = long, y = lat, group = group),
           fill = lakecol, size = .2, alpha=0.3) +
   geom_point(data =  as.data.frame(grid),
-            aes(Easting, Northing), size=0.7, shape=3, alpha = 0.6) +
+            aes(Easting, Northing), size=0.3, stroke = 0.3, shape=3, alpha = 0.6) +
   geom_path(data = outline,
             aes(x = long, y = lat, group = group, size = Population),
             color = outlinecol, size = .2)
@@ -447,6 +471,7 @@ colnames(tobler) <- c("m","v")
 
 # Plot
 ggplot(tobler, aes(x=atan(m), y=v)) +
+    theme_bw() +
     geom_line() +      # Use hollow circles
     ylab("Velocity [m/s]") +
     xlab("Slope [°]")
@@ -594,6 +619,7 @@ colnames(ddf) <- c("X","Y","DEM")
 
 # Plot
 p <- ggplot() +
+  theme_classic() + 
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -621,6 +647,7 @@ Because searching least cost paths on such a huge (global) transition layer is c
 ```{r Walking times plot, fig.align='center', fig.width=4.5, fig.height=2, message=FALSE, echo=FALSE, fig.cap="Histogram of the extracted walking times for the grid neighbors."}
 # Plot
 ggplot(nn, aes(t/(60*60))) +
+  theme_classic() + 
   geom_histogram(binwidth = 0.01) +
   ylab("Frequency") +
   xlab("Walking Time [h]")
@@ -635,11 +662,11 @@ $P_i$ stands for the population size of the data point $i$ (community) and $d_{i
 
 ```{r Gravity index, message=FALSE, echo=FALSE}
 # Gravity Index
-s=1
+s=mean(nn$t)^2/mean(nn$p1)^2
 nn$I <- (s * (nn$p1*nn$p2)/(nn$t^2) * ((nn$p1)/(nn$p1+nn$p2)))
 
 # Normalize Data
-nn$I = (nn$I-min(nn$I))/(max(nn$I)-min(nn$I))
+#nn$I = (nn$I-min(nn$I))/(max(nn$I)-min(nn$I))
 #nn$I = nn$I*1000000
 
 # Grid specfic data table
@@ -655,7 +682,7 @@ indices <- cbind(nn$ind1, nn$ind2)
 adj[indices] <- nn$I
 
 # Plot using rasterVis
-levelplot(apply(t(log(adj[1000:1200, 1000:1200]+1)),1,rev), scales=list(draw=TRUE), colorkey=TRUE,
+levelplot(apply(t(adj[1000:1200, 1000:1200]),1,rev), scales=list(draw=TRUE), colorkey=TRUE,
           par.settings=GrTheme(),
           #names.attr=paste0('MNF-', 1:8),
           #main="Adjacency Matrix",
@@ -693,10 +720,10 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 
 The parameter $\beta$ is set to 1'000'000 to increase the influence of the spatial energy term. The value of this parameter has great influence on the final results.
 
-```{r Minimize Energy,  eval=FALSE, echo=FALSE}
+```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
 it_lim <- 500
-beta <- 1000000
+beta <- 1
 
 # Set up storing values and counter
 gridSVMpredict <- numeric(ncol(grid))
@@ -858,14 +885,20 @@ grid <- grid[,-1]
 gridNames <- colnames(grid)
 grid[gridNames[5:ncol(grid)]] <- lapply(grid[gridNames[5:ncol(grid)]], factor)
 
+coordinates(grid) <- ~ Easting + Northing
+proj4string(grid) <- CH1903
+inside <- !is.na(over(grid, outline_poly))
+grid <- data.frame(grid)
+grid <- grid[inside, ]
+
 globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergies.csv"))
 globalEnergies <- globalEnergies[,-1]
 ```
 
-
 ```{r Plot energies, echo=FALSE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the global energies (in logarithmic scale) during the iterative minimization of the local energies."}
 # Basic line plot with points
 p <- ggplot(data=globalEnergies, aes(x=Iteration, y=log(Energy), group = Phenomena)) +
+  theme_classic() + 
   geom_line() +
   theme(legend.position="none")
   #geom_point()
@@ -877,6 +910,7 @@ print(p)
 ```{r Plot temperature, eval=TRUE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the temperatures during the iterative minimization of the local energies (annealing)."}
 # Basic line plot with points
 p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Temperature, group = Phenomena)) +
+  theme_classic() + 
   geom_line() +
   theme(legend.position="none")
   #geom_point()
@@ -890,6 +924,7 @@ print(p)
 # In this section the classification results of the spatial regularization applied on each phenomena are presented. The changed grid data points are marked with black squares in the plots.
 plotPhen <- function(p) {
   g <- ggplot() +
+    theme_classic() + 
     coord_fixed(ratio = 1) +
     ggtitle(paste("Phenomena", p)) +
     xlab("Easting") +
@@ -902,9 +937,9 @@ plotPhen <- function(p) {
             fill = lakecol, size = .2, alpha=0.3) +
     geom_point(data =  grid, 
                aes(Easting, Northing, colour = eval(parse(text = paste("grid$", p, "_MRF", sep="")))), 
-               size=1.9, alpha=0.5, shape=15) +
+               size=0.55, alpha=0.5, shape=15) +
     geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
-               aes(Easting, Northing), size=2, shape=0) +
+               aes(Easting, Northing), size=0.6, shape=0, stroke = 0.1) +
      scale_shape(solid = FALSE) +
     geom_path(data = outline,
             aes(x = long, y = lat, group = group),
