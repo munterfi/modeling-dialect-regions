@@ -847,10 +847,12 @@ for (p in 6:ncol(dat)){
       }
     }
     # Lower temperature
-    if (t%%5000 == 0){
+    if (t%%100 == 0){
       temp <- temp * 0.98
-      cat(t)
-      cat("-")
+      if (t%%5000 == 0){
+        cat(t)
+        cat("-")
+      }
     }
   }
   
