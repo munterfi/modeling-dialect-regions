@@ -1,7 +1,7 @@
 ---
 title: 'SynMod+: DiaProjekt (UFSP SpuR)'
 author: "Merlin Unterfinger, Geography UZH"
-date: 20 7 2017
+date: 22 7 2017
 output:
   rmarkdown::pdf_document:
     fig_caption: yes        
@@ -340,7 +340,7 @@ To select the best parameters for the training of the SVM with a radial basis fu
 
 ```{r grid search, fig.align='center', echo=FALSE, eval=FALSE}
 # Set up gammas to consider
-gammalist <- c(0.1, 0.5, 1, 1.5, 2)
+gammalist <- c(1, 1.5, 2)
 bestParameters <- numeric(4)
 for (i in 6:ncol(dat)){
   phen <- data.frame(dat$Easting, dat$Northing, dat[ ,i])
@@ -348,7 +348,7 @@ for (i in 6:ncol(dat)){
   
   # Perform grid search
   tobj <- tune.svm(DominantVar~., data =  phen,
-                gamma = gammalist, cost = 10^(1:4))
+                gamma = gammalist, cost = 10^(0:4))
   
   # Save best parameters
   bestParameters <- rbind(bestParameters, tobj$performances[rownames(tobj$best.parameters),])
@@ -367,7 +367,7 @@ write.csv(bestParameters, file = file.path(resultsDataFolder, "SVMParameters.csv
 ```
 
 ```{r load tmp files SVM, echo=FALSE}
-bestParameters <- read.csv(file.path(resultsDataFolder, "SVMParameters.csv")) #, header = T)
+bestParameters <- read.csv(file.path(resultsDataFolder, "SVMParameters.csv"))
 
 rownames(bestParameters) <- bestParameters$X
 bestParameters$X <- NULL
@@ -751,7 +751,7 @@ for (p in 6:ncol(dat)){
   svm_model <- svm(DominantVar~., data = phen, probability=TRUE,
              cost = bestC, gamma = bestGamma, cross = 10)
 
-  svm_model <- svm(DominantVar~., data = phen, probability=TRUE)
+  #svm_model <- svm(DominantVar~., data = phen, probability=TRUE)
   
   # Linguistic Energy Term - Extracting the SVM probalitites
   pred <- predict(svm_model, as.data.frame(grid)[c("Easting", "Northing")], probability=TRUE)
@@ -918,7 +918,7 @@ globalEnergies <- globalEnergies[,-1]
 
 ```{r Plot energies, echo=FALSE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the global energies (in logarithmic scale) during the iterative minimization of the local energies."}
 # Basic line plot with points
-p <- ggplot(data=globalEnergies, aes(x=Iteration, y=log(Energy), color = Phenomena, group = Phenomena)) +
+p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Energy, color = Phenomena, group = Phenomena)) +
   theme_classic() + 
   geom_line()
   #theme(legend.position="none")
