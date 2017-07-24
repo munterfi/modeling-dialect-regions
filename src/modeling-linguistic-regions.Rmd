@@ -2,7 +2,7 @@
 title: 'Modeling regions of linguistic phenomena, including the inherent spatial dependencies'
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "23 7 2017"
+date: "24 7 2017"
 output:
   rmarkdown::pdf_document:
     fig_caption: yes        
@@ -678,11 +678,14 @@ $P_i$ stands for the population size of the data point $i$ (community) and $d_{i
 s = 1
 nn$I <- (s * (nn$p1*nn$p2)/(nn$t^2) * ((nn$p1)/(nn$p1+nn$p2)))
 
-# Normalize Data
-nn$I = (nn$I-min(nn$I))/(max(nn$I)-min(nn$I))
-nn$I = -log(1-nn$I)
-nn$I[nn$I==Inf] = NA
-nn$I[is.na(nn$I)] = max(nn$I, na.rm = TRUE)
+# Scale data
+nn$I <- (nn$I-mean(nn$I))/sd(nn$I)
+
+# # Normalize Data
+# nn$I = (nn$I-min(nn$I))/(max(nn$I)-min(nn$I))
+# nn$I = -log(1-nn$I)
+# nn$I[nn$I==Inf] = NA
+# nn$I[is.na(nn$I)] = max(nn$I, na.rm = TRUE)
 
 # Grid specfic data table
 knitr::kable(round(head(nn[order(-nn$p1),]),3), caption = "Some example edges of neighbors in the grid, showing the attribute values.", row.names = FALSE)
@@ -733,7 +736,7 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 200000
+it_lim <- 100000
 beta <- 1
 
 # Set up storing values and counter
@@ -769,7 +772,9 @@ for (p in 6:ncol(dat)){
   
   probs <- attr(pred, "probabilities")
   probs <- probs[,c(sort(colnames(probs)))] # Change class/column order ASC
-  U_ling <- -log(probs)
+  #U_ling <- -log(probs)
+  probs <- 1-probs
+  U_ling <- (probs-mean(probs))/sd(probs)
   
   # Store the orginal values
   gridSVMpredict <- cbind(gridSVMpredict, pred)
@@ -980,7 +985,7 @@ plotPhen <- function(p) {
                                                    sep="")))), 
                size=0.55, shape=15) +
     geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
-               aes(Easting, Northing), size=0.6, shape=0, stroke = 0.1) +
+               aes(Easting, Northing), size=0.6, shape=0, stroke = 0.2) +
      scale_shape(solid = FALSE) +
     geom_path(data = outline,
             aes(x = long, y = lat, group = group),
