@@ -2,7 +2,7 @@
 title: 'Modeling regions of linguistic phenomena, including the inherent spatial dependencies'
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "24 7 2017"
+date: "25 7 2017"
 output:
   rmarkdown::pdf_document:
     fig_caption: yes        
@@ -677,6 +677,7 @@ $P_i$ stands for the population size of the data point $i$ (community) and $d_{i
 #s = mean(nn$t)^2/mean(nn$p1)^2
 s = 1
 nn$I <- (s * (nn$p1*nn$p2)/(nn$t^2) * ((nn$p1)/(nn$p1+nn$p2)))
+# nn$I <- nn$t
 
 # Scale data
 nn$I <- (nn$I-mean(nn$I))/sd(nn$I)
@@ -739,7 +740,7 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 50000
+it_lim <- 200000
 beta <- 1
 
 # Set up storing values and counter
@@ -945,7 +946,11 @@ inside <- !is.na(over(grid, outline_poly))
 grid <- data.frame(grid)
 grid <- grid[inside, ]
 
-# Normalize the local energies
+tmp_E <- data.frame(grid$i1_Energy, grid$i6_Energy, grid$i11_Energy, grid$iv14_Energy)
+tmp_E <- apply(X=tmp_E, FUN=as.numeric, MARGIN = 2)
+grid$MeanEnergy <- apply(X=tmp_E, FUN=mean, MARGIN = 1)
+
+# Invert the local energies
 grid$i1_Energy <- -1*as.numeric(grid$i1_Energy)
 grid$i6_Energy <- -1*as.numeric(grid$i6_Energy)
 grid$i11_Energy <- -1*as.numeric(grid$i11_Energy)
@@ -1028,6 +1033,32 @@ plotPhen(names[(i+5)])
 ```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
 i <- 4
 plotPhen(names[(i+5)])
+```
+
+```{r Mean Energy, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="The mean energy of the four phenomena."}
+# Create combined linguistic region from the four phenomena
+# Energy & class
+g <- ggplot() +
+    theme_classic() + 
+    coord_fixed(ratio = 1) +
+    ggtitle(paste("Infinitival complementizer")) +
+    xlab("Easting") +
+    ylab("Northing") +
+    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+    scale_alpha(guide = 'none') +
+    geom_polygon(data = lakes,
+            aes(x = long, y = lat, group = group),
+            fill = lakecol, size = .2, alpha=0.3) +
+    geom_point(data =  grid, 
+               aes(Easting, Northing, 
+                   colour = MeanEnergy), 
+               size=0.55, shape=15, alpha=0.7) +
+    scale_shape(solid = FALSE) +
+    geom_path(data = outline,
+            aes(x = long, y = lat, group = group),
+            color = outlinecol, size = .2) +
+    labs(color = "Energy")
+print(g)
 ```
 
 ```{r , eval=FALSE, fig.align='center', echo=FALSE, fig.cap="Pixel class with the lowest energy of the four phenomena is taken."}
