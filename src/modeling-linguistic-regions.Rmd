@@ -680,6 +680,7 @@ nn$I <- (s * (nn$p1*nn$p2)/(nn$t^2) * ((nn$p1)/(nn$p1+nn$p2)))
 
 # Scale data
 nn$I <- (nn$I-mean(nn$I))/sd(nn$I)
+#nn$I <- nn$I + abs(min(nn$I))
 
 # # Normalize Data
 # nn$I = (nn$I-min(nn$I))/(max(nn$I)-min(nn$I))
@@ -736,8 +737,8 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 100000
-beta <- 1
+it_lim <- 200000
+beta <- 2
 
 # Set up storing values and counter
 gridSVMpredict <- numeric(nrow(grid))
@@ -772,9 +773,13 @@ for (p in 6:ncol(dat)){
   
   probs <- attr(pred, "probabilities")
   probs <- probs[,c(sort(colnames(probs)))] # Change class/column order ASC
-  #U_ling <- -log(probs)
-  probs <- 1-probs
-  U_ling <- (probs-mean(probs))/sd(probs)
+  #U_ling <- -log(probs) !!!
+  #probs <- 1-probs
+  U_ling <- 1-probs
+  U_ling[,1] <- (U_ling[,1]-mean(U_ling[,1]))/sd(U_ling[,1])
+  #U_ling[,1] <- U_ling[,1] + abs(min(U_ling[,1]))
+  U_ling[,2] <- (U_ling[,2]-mean(U_ling[,2]))/sd(U_ling[,2])
+  #U_ling[,2] <- U_ling[,2] + abs(min(U_ling[,2]))
   
   # Store the orginal values
   gridSVMpredict <- cbind(gridSVMpredict, pred)
