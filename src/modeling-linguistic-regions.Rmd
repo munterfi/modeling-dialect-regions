@@ -2,7 +2,7 @@
 title: 'Modeling regions of linguistic phenomena, including the inherent spatial dependencies'
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "25 7 2017"
+date: "26 7 2017"
 output:
   rmarkdown::pdf_document:
     fig_caption: yes        
@@ -395,7 +395,7 @@ With the evaluated parameters from the previous section, a SVM is trained for ea
 A regular grid of data points is expanded over the area of Switzerland. The grid extent is taken from a buffered (8000m) convex hull drawn around all data points.
 ```{r Setup grid, fig.align='center', echo=FALSE, message=FALSE, fig.cap="Regular grid over the extent the convex hull."}
 # Create grid of the size of CH
-gridRes <- 2000 # Resolution in meters
+gridRes <- 1500 # Resolution in meters
 gridRange <- apply(convhull@polygons[[1]]@Polygons[[1]]@coords, 2, range)
 dx <- gridRange[2, 1]-gridRange[1, 1]
 dy <- gridRange[2, 2]-gridRange[1, 2]
@@ -489,7 +489,7 @@ ggplot(tobler, aes(x=atan(m), y=v)) +
 
 ## Least Cost Path & Walking Time
 By using the the *gdistance* package, least cost paths between all neighbors are estimated and the time for walking these paths is extracted with the `costDistance()` function. The least cost path estimation is based on a transition layer (*conductance*), which is generated with the height differences of the pixels in the DHM. In a next step Toblers hiking function is applied on the Slope in 8 directions of each pixel. This produces a transition layer with the walking velocity $W$ in the 8 possible directions at every pixel in the DHM.
-```{r GDistance Costpaths, echo=FALSE, warning=FALSE, message=FALSE, eval=FALSE}
+```{r GDistance Costpaths, echo=FALSE, warning=FALSE, message=FALSE, eval=TRUE}
 # Set up empty dataframe
 grid.nn.d <- NULL
 
@@ -740,8 +740,8 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 200000
-beta <- 1
+it_lim <- 50000
+beta <- 1000
 
 # Set up storing values and counter
 gridSVMpredict <- numeric(nrow(grid))
