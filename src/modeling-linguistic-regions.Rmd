@@ -691,8 +691,8 @@ $P_i$ stands for the population size of the data point $i$ (community) and $d_{i
 # Gravity Index
 #s = mean(nn$t)^2/mean(nn$p1)^2
 s = 1
-nn$I <- (s * (nn$p1*nn$p2)/(nn$t^2) * ((nn$p1)/(nn$p1+nn$p2)))
-# nn$I <- nn$t
+#nn$I <- (s * (nn$p1*nn$p2)/(nn$t^2) * ((nn$p1)/(nn$p1+nn$p2)))
+nn$I <- 1/nn$t
 
 # Scale data
 nn$I <- (nn$I-mean(nn$I))/sd(nn$I)
@@ -755,8 +755,8 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 400000
-beta <- 1
+it_lim <- 200000
+beta <- 0.1
 
 # Set up storing values and counter
 gridSVMpredict <- numeric(nrow(grid))
