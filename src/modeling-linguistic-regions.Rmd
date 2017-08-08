@@ -2,7 +2,7 @@
 title: "Modeling regions of linguistic phenomena, including the inherent spatial dependencies"
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "5 8 2017"
+date: "8 8 2017"
 
 output:
   rmarkdown::pdf_document:
