@@ -1089,3 +1089,96 @@ print(g)
 ```
 
 \newpage
+## KDE
+```{r KDE, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Kernel density estimation."}
+# Kernel Desnity Estimation
+## Pius Sibler, K not important, h is important!
+## 
+coordinates(grid) <- ~ Easting + Northing
+proj4string(grid) <- CH1903
+
+library(GISTools)
+
+# Für
+i1.fuer <- dat[dat$i1==1,]
+coordinates(i1.fuer) <- ~ Easting + Northing
+proj4string(i1.fuer) <- CH1903
+fuer.KDE <- raster(kde.points(i1.fuer,  h=10000, n=1500, lims=extent(grid)))
+# i1.fuer.KDE <- raster(kde.points(i1.fuer, n=1500, lims=extent(grid)))
+
+# Zum
+i1.zum <- dat[dat$i1==2,]
+coordinates(i1.zum) <- ~ Easting + Northing
+proj4string(i1.zum) <- CH1903
+zum.KDE <- raster(kde.points(i1.zum,  h=10000, n=1500, lims=extent(grid)))
+
+# Stack raster layer
+f.z <- stack(fuer.KDE, zum.KDE)
+# Extract class
+class <- which.max(f.z)
+# Extract value
+val <- max(f.z)
+
+# Project on existing grid
+grid$i1_KDE <- extract(class, grid)
+grid$i1_KDE <- mapvalues(grid$i1_KDE, from = c("1", "2"), to = c("für", "zum"))
+grid$i1_KDE_Val <- extract(val, grid)
+
+grid <- data.frame(grid)
+
+# Function for KDE plotting
+plotPhenKDE <- function(p) {
+  g <- ggplot() +
+    theme_classic() + 
+    coord_fixed(ratio = 1) +
+    ggtitle(paste("Phenomena", p)) +
+    xlab("Easting") +
+    ylab("Northing") +
+    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+    scale_alpha(guide = 'none') +
+    geom_polygon(data = lakes,
+            aes(x = long, y = lat, group = group),
+            fill = lakecol, size = .2, alpha=0.3) +
+    geom_point(data =  grid, 
+               aes(Easting, Northing, 
+                   colour = eval(parse(text = paste("grid$", p, "_KDE", sep=""))),
+                   alpha = eval(parse(text = paste("grid$", p, "_",
+                                                   sep="")))), 
+               size=0.315, shape=15) +
+    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
+               aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
+     scale_shape(solid = FALSE) +
+    geom_path(data = outline,
+            aes(x = long, y = lat, group = group),
+            color = outlinecol, size = .2) +
+    labs(color = "Class")
+  print(g)
+}
+
+
+plotPhenKDE <- function(p) {
+  g <- ggplot() +
+      theme_classic() + 
+      coord_fixed(ratio = 1) +
+      ggtitle(paste("Phenomena", p)) +
+      xlab("Easting") +
+      ylab("Northing") +
+      geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+      scale_alpha(guide = 'none') +
+      geom_polygon(data = lakes,
+              aes(x = long, y = lat, group = group),
+              fill = lakecol, size = .2, alpha=0.3) +
+      geom_point(data =  grid, 
+                 aes(Easting, Northing, 
+                     colour = eval(parse(text = paste("grid$", p, "_KDE", sep=""))), 
+                     alpha = eval(parse(text = paste("grid$", p, "_KDE_Val", sep="")))), 
+                 size=0.315, shape=15) +
+      scale_shape(solid = FALSE) +
+      geom_path(data = outline,
+              aes(x = long, y = lat, group = group),
+              color = outlinecol, size = .2) +
+      labs(color = "Energy")
+  print(g)
+}
+plotPhenKDE("i1")
+```
