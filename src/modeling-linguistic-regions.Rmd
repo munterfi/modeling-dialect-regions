@@ -2,7 +2,7 @@
 title: "Modeling regions of linguistic phenomena, including the inherent spatial dependencies"
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "5 8 2017"
+date: "8 8 2017"
 
 output:
   rmarkdown::pdf_document:
@@ -692,10 +692,11 @@ $P_i$ stands for the population size of the data point $i$ (community) and $d_{i
 #s = mean(nn$t)^2/mean(nn$p1)^2
 s = 1
 nn$I <- (s * (nn$p1*nn$p2)/(nn$t^2) * ((nn$p1)/(nn$p1+nn$p2)))
-# nn$I <- nn$t
+
+# !!! nn$I <- 1/nn$t
 
 # Scale data
-nn$I <- (nn$I-mean(nn$I))/sd(nn$I)
+#nn$I <- (nn$I-mean(nn$I))/sd(nn$I)
 minI <- min(nn$I)
 
 #nn$I <- nn$I + abs(min(nn$I))
@@ -742,7 +743,7 @@ $$U(x_{i})=U_{linguistic}(x_{i}) + U_{spatial}(x_{i})$$
 The linguistic energy term only uses the SVM probabilities and is computed as:
 $$U_{linguistic}(x_{i}) = -ln\{P(x_i|L_i) \}$$
 And the spatial energy term is calculated using the following equation: 
-$$U_{spatial}(x_{i}) = \sum_{x_j\in N_i}\beta I_{ij}(1-\delta(L_i,  L_j))$$
+$$U_{spatial}(x_{i}) = \beta \frac{\sum_{x_j\in N_i} I_{ij}(1-\delta(L_i,  L_j))}{\sum_{x_j\in N_i} I_{ij}}$$
 where $\delta(.,.)$ is the Kronecker delta function ($\delta(a, b) = 1$ if $a =b$, and $\delta(a, b) = 0$ otherwise) and $\beta$ is a parameter that controls the importance of the spatial versus spectral energy terms. $I_{ij}$ is the index of the linguistic influence of between two neighbors, defined in the a previous section.
 
 \newpage
@@ -793,19 +794,25 @@ for (p in 6:ncol(dat)){
   probs <- probs[,c(sort(colnames(probs)))] # Change class/column order ASC
   
   # Invert probabilities
-  U_ling <- 1-probs
+  U_ling <- 1/probs
+  
+  # Scale between 0 and 1
+  for (e in 1:ncol(U_ling)){
+    U_ling[,e] <- (U_ling[,e]-min(U_ling[,e]))/(max(U_ling[,e])-min(U_ling[,e]))
+  }
+  
   #U_ling <- -log(probs) !!!
   
-  # Scale energies
-  U_ling[,1] <- (U_ling[,1]-mean(U_ling[,1]))/sd(U_ling[,1])
-  U_ling[,2] <- (U_ling[,2]-mean(U_ling[,2]))/sd(U_ling[,2])
-  
-  # Shift to positive values by the min of all distributions
-  minAll <- min(minI, U_ling[,1], U_ling[,2])
-  U_ling <- U_ling + abs(minAll)
-  
-  # Create weighted asymetric adjacency matrix
-  adj[indices] <- nn$I + abs(minAll)
+  # # Scale energies
+  # U_ling[,1] <- (U_ling[,1]-mean(U_ling[,1]))/sd(U_ling[,1])
+  # U_ling[,2] <- (U_ling[,2]-mean(U_ling[,2]))/sd(U_ling[,2])
+  # 
+  # # Shift to positive values by the min of all distributions
+  # minAll <- min(minI, U_ling[,1], U_ling[,2])
+  # U_ling <- U_ling + abs(minAll)
+  # 
+  # # Create weighted asymetric adjacency matrix
+  # adj[indices] <- nn$I + abs(minAll)
   
   # Store the orginal values
   gridSVMpredict <- cbind(gridSVMpredict, pred)
@@ -818,8 +825,9 @@ for (p in 6:ncol(dat)){
   # Calculate Start Value
   E_local <- array(0,length(MRF_pred))
   for (i in 1:length(MRF_pred)) {
-    U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
-    E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp
+    # ORIGINAL: U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]] * beta)
+    U_sp <- sum(adj[i,][MRF_pred != MRF_pred[[i]]])/sum(adj[i,])
+    E_local[i] <- U_ling[i, MRF_pred[[i]]] + U_sp * beta
   }
   E_global[nrow(E_global)+1,]$Iteration <- 0
   E_global[nrow(E_global),]$Energy <- sum(E_local)
@@ -835,12 +843,12 @@ for (p in 6:ncol(dat)){
     # Change random the class
     rclass <- sample(classes[classes != origclass], 1)
     
-    # Calculate original local energy
+    # Save original local energy
     E_local_old <- E_local[rind]
     
     # Calculate new local energy
     E_local_new <- U_ling[rind, colnames(U_ling)==as.character(rclass)] + 
-      sum(adj[rind,][MRF_pred != rclass] * beta)
+      sum(adj[rind,][MRF_pred != rclass])/sum(adj[rind,]) * beta
     
     # Define delta U
     dU <- E_local_new - E_local_old
@@ -857,8 +865,8 @@ for (p in 6:ncol(dat)){
       E_local[rind] <- E_local_new
       for (z in 1:length(adjInd)) {
         w <- adjInd[z]
-        U_sp <- sum(adj[w,][MRF_pred != MRF_pred[[w]]] * beta)
-        E_local[w] <- U_ling[w, MRF_pred[[w]]] + U_sp
+        U_sp <- sum(adj[w,][MRF_pred != MRF_pred[[w]]])/sum(adj[w,])
+        E_local[w] <- U_ling[w, MRF_pred[[w]]] + U_sp * beta
       }
       
       # Update global Energy
@@ -882,8 +890,8 @@ for (p in 6:ncol(dat)){
         E_local[rind] <- E_local_new
         for (z in 1:length(adjInd)) {
           w <- adjInd[z]
-          U_sp <- sum(adj[w,][MRF_pred != MRF_pred[[w]]] * beta)
-          E_local[w] <- U_ling[w, MRF_pred[[w]]] + U_sp
+          U_sp <- sum(adj[w,][MRF_pred != MRF_pred[[w]]])/sum(adj[w,])
+          E_local[w] <- U_ling[w, MRF_pred[[w]]] + U_sp * beta
         }
         
         # Update global Energy
