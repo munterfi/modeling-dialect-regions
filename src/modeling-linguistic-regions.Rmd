@@ -2,7 +2,7 @@
 title: "Modeling regions of linguistic phenomena, including the inherent spatial dependencies"
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "8 8 2017"
+date: "16 8 2017"
 
 output:
   rmarkdown::pdf_document:
@@ -84,8 +84,9 @@ library(rgeos)            # Geoprocessing
 library(rgdal)            # Open Shapefiles
 library(ggplot2)          # Plots
 library(gdistance)        # Least cost path - Walking time
+library(GISTools)         # Kernel density estimation
 library(rasterVis)        # Plots of rasters
-library(plyr)             # 
+library(plyr)             # Data type manipulation
 
 # install.packages("e1071")
 # install.packages("sp")
@@ -95,8 +96,10 @@ library(plyr)             #
 # install.packages("rgdal")
 # install.packages("ggplot2")
 # install.packages("gdistance")
+# install.packages("GISTools")
 # install.packages("rasterVis")
 # install.packages("plyr")
+# install.packages("GISTools")
 ```
 
 # Data
@@ -1029,9 +1032,9 @@ plotPhen <- function(p) {
                    alpha = eval(parse(text = paste("grid$", p, "_Energy",
                                                    sep="")))), 
                size=0.315, shape=15) +
-    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
-               aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
-     scale_shape(solid = FALSE) +
+    # geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
+    #            aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
+    #  scale_shape(solid = FALSE) +
     geom_path(data = outline,
             aes(x = long, y = lat, group = group),
             color = outlinecol, size = .2) +
@@ -1093,68 +1096,58 @@ print(g)
 ```{r KDE, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Kernel density estimation."}
 # Kernel Desnity Estimation
 ## Pius Sibler, K not important, h is important!
-## 
+
+# DATA
+# Open original dataset
+savfilename <- "Gesamttabelle_68phen_alleSprecher.sav"
+orig_data = read.spss(file.path(origDataFolder,savfilename), to.data.frame=TRUE)
+
+# Extract phenomenas for the syntactical construct that is called ‘infinitival complementizer’
+orig_data <- orig_data[c("BFS_Nr", "i1_fz", "i1_zz", "i6_fz", "i6_zz", "i11_fz", "i11_zz", "iv14_fz", "iv14_zz")]
+phens <- colnames(orig_data)
+
+# Open Peter's file; coordinates
+csvfilename <- "I11_2Dregressed.csv"
+coordsBFS <- read.csv(file.path(origDataFolder, csvfilename), header = T)
+coordsBFS <- coordsBFS[,3:7]
+colnames(coordsBFS) <- c("Easting", "Northing", "BFS_Nr", "NAME", "N_GPS")
+
+# Remove spaces in BFS of dat
+orig_data$BFS_Nr <- sapply(X=" ", gsub, "", orig_data$BFS_Nr)
+
+# Join data and coordinates based on BFS_nr
+orig_data <- merge(coordsBFS, orig_data, by="BFS_Nr")
+
+# Convert original data to spdf
+coordinates(orig_data) <- ~ Easting + Northing
+proj4string(orig_data) <- CH1903
+
+# Convert grid to spdf
 coordinates(grid) <- ~ Easting + Northing
 proj4string(grid) <- CH1903
 
-library(GISTools)
+bw=10000
 
+# Phenomena i1
 # Für
-i1.fuer <- dat[dat$i1==1,]
-coordinates(i1.fuer) <- ~ Easting + Northing
-proj4string(i1.fuer) <- CH1903
-fuer.KDE <- raster(kde.points(i1.fuer,  h=10000, n=1500, lims=extent(grid)))
-# i1.fuer.KDE <- raster(kde.points(i1.fuer, n=1500, lims=extent(grid)))
-
+i1.fuer <- orig_data[orig_data$i1_fz==1,]
+fuer.KDE <- raster(kde.points(i1.fuer, h=bw, n=1500, lims=extent(grid)))
 # Zum
-i1.zum <- dat[dat$i1==2,]
-coordinates(i1.zum) <- ~ Easting + Northing
-proj4string(i1.zum) <- CH1903
-zum.KDE <- raster(kde.points(i1.zum,  h=10000, n=1500, lims=extent(grid)))
-
+i1.zum <- orig_data[orig_data$i1_zz==1,]
+zum.KDE <- raster(kde.points(i1.zum, h=bw, n=1500, lims=extent(grid)))
 # Stack raster layer
 f.z <- stack(fuer.KDE, zum.KDE)
 # Extract class
 class <- which.max(f.z)
 # Extract value
 val <- max(f.z)
-
 # Project on existing grid
 grid$i1_KDE <- extract(class, grid)
 grid$i1_KDE <- mapvalues(grid$i1_KDE, from = c("1", "2"), to = c("für", "zum"))
 grid$i1_KDE_Val <- extract(val, grid)
 
+# Convert datafram back to grid
 grid <- data.frame(grid)
-
-# Function for KDE plotting
-plotPhenKDE <- function(p) {
-  g <- ggplot() +
-    theme_classic() + 
-    coord_fixed(ratio = 1) +
-    ggtitle(paste("Phenomena", p)) +
-    xlab("Easting") +
-    ylab("Northing") +
-    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
-    scale_alpha(guide = 'none') +
-    geom_polygon(data = lakes,
-            aes(x = long, y = lat, group = group),
-            fill = lakecol, size = .2, alpha=0.3) +
-    geom_point(data =  grid, 
-               aes(Easting, Northing, 
-                   colour = eval(parse(text = paste("grid$", p, "_KDE", sep=""))),
-                   alpha = eval(parse(text = paste("grid$", p, "_",
-                                                   sep="")))), 
-               size=0.315, shape=15) +
-    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
-               aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
-     scale_shape(solid = FALSE) +
-    geom_path(data = outline,
-            aes(x = long, y = lat, group = group),
-            color = outlinecol, size = .2) +
-    labs(color = "Class")
-  print(g)
-}
-
 
 plotPhenKDE <- function(p) {
   g <- ggplot() +
@@ -1171,7 +1164,7 @@ plotPhenKDE <- function(p) {
       geom_point(data =  grid, 
                  aes(Easting, Northing, 
                      colour = eval(parse(text = paste("grid$", p, "_KDE", sep=""))), 
-                     alpha = eval(parse(text = paste("grid$", p, "_KDE_Val", sep="")))), 
+                     alpha = eval(parse(text = paste("grid$", p, "_KDE_Val", sep="")))),
                  size=0.315, shape=15) +
       scale_shape(solid = FALSE) +
       geom_path(data = outline,
@@ -1181,4 +1174,14 @@ plotPhenKDE <- function(p) {
   print(g)
 }
 plotPhenKDE("i1")
+
+
+library(deldir)
+# Calculate the Delaunay triangulation, then the tiles.
+z <- deldir(coordsBFS)
+w <- tile.list(z)
+
+# Make a list of pretty colours, and use 'em to plot:
+wcols <- topo.colors(5) 
+plot(w, fillcol=wcols, close=TRUE)
 ```
