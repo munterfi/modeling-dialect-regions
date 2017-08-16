@@ -1175,7 +1175,6 @@ plotPhenKDE <- function(p) {
 }
 plotPhenKDE("i1")
 
-
 library(deldir)
 # Calculate the Delaunay triangulation, then the tiles.
 z <- deldir(coordsBFS)
