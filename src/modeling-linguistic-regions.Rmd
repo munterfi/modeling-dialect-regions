@@ -998,113 +998,7 @@ globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergies.csv"))
 globalEnergies <- globalEnergies[,-1]
 ```
 
-```{r Plot energies, echo=FALSE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the global energies (in logarithmic scale) during the iterative minimization of the local energies."}
-# Basic line plot with points
-p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Energy, color = Phenomena, group = Phenomena)) +
-  theme_classic() + 
-  geom_line()
-  #theme(legend.position="none")
-
-print(p)
-```
-
-
-```{r Plot temperature, eval=TRUE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the temperatures during the iterative minimization of the local energies (annealing)."}
-# Basic line plot with points
-p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Temperature, group = Phenomena)) +
-  theme_classic() + 
-  geom_line() +
-  theme(legend.position="none")
-
-print(p)
-```
-
-\newpage
-# Results
-
-```{r plot phenomena function, eval=TRUE, fig.align='center', echo=FALSE}
-# In this section the classification results of the spatial regularization applied on each phenomena are presented. The changed grid data points are marked with black squares in the plots.
-## Classification maps
-plotPhen <- function(p) {
-  g <- ggplot() +
-    theme_classic() + 
-    coord_fixed(ratio = 1) +
-    ggtitle(paste("Phenomena", p)) +
-    xlab("Easting") +
-    ylab("Northing") +
-    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
-    scale_alpha(guide = 'none') +
-    geom_polygon(data = lakes,
-            aes(x = long, y = lat, group = group),
-            fill = lakecol, size = .2, alpha=0.3) +
-    geom_point(data =  grid, 
-               aes(Easting, Northing, 
-                   colour = eval(parse(text = paste("grid$", p, "_MRF", sep=""))),
-                   alpha = eval(parse(text = paste("grid$", p, "_Energy",
-                                                   sep="")))), 
-               size=0.315, shape=15) +
-    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,],
-               aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
-     scale_shape(solid = FALSE) +
-    geom_path(data = outline,
-            aes(x = long, y = lat, group = group),
-            color = outlinecol, size = .2) +
-    labs(color = "Class")
-  print(g)
-}
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 1
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 2
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 3
-plotPhen(names[(i+5)])
-```
-
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
-i <- 4
-plotPhen(names[(i+5)])
-```
-
-
-```{r Mean Energy, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="The mean energy of the four phenomena."}
-## Mean energy map
-# Create combined linguistic region from the four phenomena
-# Energy & class
-g <- ggplot() +
-    theme_classic() + 
-    coord_fixed(ratio = 1) +
-    ggtitle(paste("Infinitival complementizer")) +
-    xlab("Easting") +
-    ylab("Northing") +
-    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
-    scale_alpha(guide = 'none') +
-    geom_polygon(data = lakes,
-            aes(x = long, y = lat, group = group),
-            fill = lakecol, size = .2, alpha=0.3) +
-    geom_point(data =  grid, 
-               aes(Easting, Northing, 
-                   colour = MeanEnergy), 
-               size=0.315, shape=15, alpha=0.7) +
-    scale_shape(solid = FALSE) +
-    geom_path(data = outline,
-            aes(x = long, y = lat, group = group),
-            color = outlinecol, size = .2) +
-    labs(color = "Energy")
-print(g)
-```
-
-\newpage
-## KDE
-```{r KDE, eval=FALSE, fig.align='center', echo=FALSE, fig.cap="Kernel density estimation."}
+```{r KDEandThiessen, eval=TRUE, message=FALSE, warnings=FALSE, fig.align='center', echo=FALSE, fig.cap="Kernel density estimation."}
 # DATA
 # Open original dataset
 savfilename <- "Gesamttabelle_68phen_alleSprecher.sav"
@@ -1167,13 +1061,71 @@ val <- (val-minValue(val))/(maxValue(val)-minValue(val))
 coordsBFS$i1_KDE <- extract(class, coordsBFS)
 coordsBFS$i1_KDE <- mapvalues(coordsBFS$i1_KDE, from = c("1", "2"), to = c("für", "zum"))
 coordsBFS$i1_KDE_Val <- extract(val, coordsBFS)
-#plot(coordsBFS, col = alpha(coordsBFS$i1_KDE, coordsBFS$i1_KDE_Val))
+
+# Phenomena i6
+# Für
+i6.fuer <- orig_data[orig_data$i6_fz==1,]
+fuer.KDE <- raster(kde.points(i6.fuer, h=bw, n=1500, lims=extent(grid)))
+# Zum
+i6.zum <- orig_data[orig_data$i6_zz==1,]
+zum.KDE <- raster(kde.points(i6.zum, h=bw, n=1500, lims=extent(grid)))
+# Stack raster layer
+f.z <- stack(fuer.KDE, zum.KDE)
+# Extract class
+class <- which.max(f.z)
+# Extract value
+val <- max(f.z)
+val <- (val-minValue(val))/(maxValue(val)-minValue(val))
+
+# Extract on coordsBFS
+coordsBFS$i6_KDE <- extract(class, coordsBFS)
+coordsBFS$i6_KDE <- mapvalues(coordsBFS$i6_KDE, from = c("1", "2"), to = c("für", "zum"))
+coordsBFS$i6_KDE_Val <- extract(val, coordsBFS)
+
+# Phenomena i11
+# Für
+i11.fuer <- orig_data[orig_data$i11_fz==1,]
+fuer.KDE <- raster(kde.points(i11.fuer, h=bw, n=1500, lims=extent(grid)))
+# Zum
+i11.zum <- orig_data[orig_data$i11_zz==1,]
+zum.KDE <- raster(kde.points(i11.zum, h=bw, n=1500, lims=extent(grid)))
+# Stack raster layer
+f.z <- stack(fuer.KDE, zum.KDE)
+# Extract class
+class <- which.max(f.z)
+# Extract value
+val <- max(f.z)
+val <- (val-minValue(val))/(maxValue(val)-minValue(val))
+
+# Extract on coordsBFS
+coordsBFS$i11_KDE <- extract(class, coordsBFS)
+coordsBFS$i11_KDE <- mapvalues(coordsBFS$i11_KDE, from = c("1", "2"), to = c("für", "zum"))
+coordsBFS$i11_KDE_Val <- extract(val, coordsBFS)
+
+# Phenomena iv14
+# Für
+iv14.fuer <- orig_data[orig_data$iv14_fz==1,]
+fuer.KDE <- raster(kde.points(iv14.fuer, h=bw, n=1500, lims=extent(grid)))
+# Zum
+iv14.zum <- orig_data[orig_data$iv14_zz==1,]
+zum.KDE <- raster(kde.points(iv14.zum, h=bw, n=1500, lims=extent(grid)))
+# Stack raster layer
+f.z <- stack(fuer.KDE, zum.KDE)
+# Extract class
+class <- which.max(f.z)
+# Extract value
+val <- max(f.z)
+val <- (val-minValue(val))/(maxValue(val)-minValue(val))
+
+# Extract on coordsBFS
+coordsBFS$iv14_KDE <- extract(class, coordsBFS)
+coordsBFS$iv14_KDE <- mapvalues(coordsBFS$iv14_KDE, from = c("1", "2"), to = c("für", "zum"))
+coordsBFS$iv14_KDE_Val <- extract(val, coordsBFS)
 
 # # Project on existing grid
 # grid$i1_KDE <- extract(class, grid)
 # grid$i1_KDE <- mapvalues(grid$i1_KDE, from = c("1", "2"), to = c("für", "zum"))
 # grid$i1_KDE_Val <- extract(val, grid)
-
 
 # ----
 # Merge results
@@ -1184,10 +1136,58 @@ grid <- merge(grid, dat, by.x="BFS_Nr", by.y="BFS")
 grid <- data.frame(grid)
 # Change to factor
 grid$i1 <- mapvalues(grid$i1, from = c("1", "2"), to = c("für", "zum"))
+```
 
+```{r Plot energies, echo=FALSE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the global energies (in logarithmic scale) during the iterative minimization of the local energies."}
+# Basic line plot with points
+p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Energy, color = Phenomena, group = Phenomena)) +
+  theme_classic() + 
+  geom_line()
+  #theme(legend.position="none")
 
+print(p)
+```
 
+```{r Plot temperature, eval=TRUE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the temperatures during the iterative minimization of the local energies (annealing)."}
+# Basic line plot with points
+p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Temperature, group = Phenomena)) +
+  theme_classic() + 
+  geom_line() +
+  theme(legend.position="none")
 
+print(p)
+```
+
+\newpage
+# Results
+```{r plot phenomena function, eval=TRUE, fig.align='center', echo=FALSE}
+# In this section the classification results of the spatial regularization applied on each phenomena are presented. The changed grid data points are marked with black squares in the plots.
+# Majority vote
+plotPhenMV <- function(p) {
+  g <- ggplot() +
+      theme_classic() + 
+      coord_fixed(ratio = 1) +
+      ggtitle(paste("Phenomen", p, ": Majority vote")) +
+      xlab("Easting") +
+      ylab("Northing") +
+      geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+      # scale_alpha(guide = 'none') +
+      geom_polygon(data = lakes,
+              aes(x = long, y = lat, group = group),
+              fill = lakecol, size = .2, alpha=0.3) +
+      geom_point(data =  grid, 
+                 aes(Easting, Northing, 
+                     colour = eval(parse(text = paste("grid$", p, sep="")))), 
+                 size=0.315, shape=15) +
+      scale_shape(solid = FALSE) +
+      geom_path(data = outline,
+              aes(x = long, y = lat, group = group),
+              color = outlinecol, size = .2) +
+      labs(color = "Variant")
+  print(g)
+}
+
+# Kernel density estimation
 plotPhenKDE <- function(p) {
   g <- ggplot() +
       theme_classic() + 
@@ -1213,29 +1213,124 @@ plotPhenKDE <- function(p) {
   print(g)
 }
 
-plotPhenMV <- function(p) {
+# Spatial regularization, gravity index
+plotPhenII <- function(p) {
   g <- ggplot() +
-      theme_classic() + 
-      coord_fixed(ratio = 1) +
-      ggtitle(paste("Phenomen", p, ": Majority vote")) +
-      xlab("Easting") +
-      ylab("Northing") +
-      geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
-      # scale_alpha(guide = 'none') +
-      geom_polygon(data = lakes,
-              aes(x = long, y = lat, group = group),
-              fill = lakecol, size = .2, alpha=0.3) +
-      geom_point(data =  grid, 
-                 aes(Easting, Northing, 
-                     colour = eval(parse(text = paste("grid$", p, sep="")))), 
-                 size=0.315, shape=15) +
-      scale_shape(solid = FALSE) +
-      geom_path(data = outline,
-              aes(x = long, y = lat, group = group),
-              color = outlinecol, size = .2) +
-      labs(color = "Variant")
+    theme_classic() + 
+    coord_fixed(ratio = 1) +
+    ggtitle("Spatial regularization, inverse walking distance") +
+    xlab("Easting") +
+    ylab("Northing") +
+    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+    scale_alpha(guide = 'none') +
+    geom_polygon(data = lakes,
+            aes(x = long, y = lat, group = group),
+            fill = lakecol, size = .2, alpha=0.3) +
+    geom_point(data =  grid, 
+               aes(Easting, Northing, 
+                   colour = eval(parse(text = paste("grid$", p, "_MRF", sep=""))),
+                   alpha = eval(parse(text = paste("grid$", p, "_Energy",
+                                                   sep="")))), 
+               size=0.315, shape=15) +
+    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,],
+               aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
+     scale_shape(solid = FALSE) +
+    geom_path(data = outline,
+            aes(x = long, y = lat, group = group),
+            color = outlinecol, size = .2) +
+    labs(color = "Variant")
   print(g)
 }
-plotPhenMV("i1")
-plotPhenKDE("i1")
+
+# Spatial regularization, gravity index
+plotPhenGI <- function(p) {
+  g <- ggplot() +
+    theme_classic() + 
+    coord_fixed(ratio = 1) +
+    ggtitle("Spatial regularization, gravity index") +
+    xlab("Easting") +
+    ylab("Northing") +
+    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+    scale_alpha(guide = 'none') +
+    geom_polygon(data = lakes,
+            aes(x = long, y = lat, group = group),
+            fill = lakecol, size = .2, alpha=0.3) +
+    geom_point(data =  grid, 
+               aes(Easting, Northing, 
+                   colour = eval(parse(text = paste("grid$", p, "_MRF", sep=""))),
+                   alpha = eval(parse(text = paste("grid$", p, "_Energy",
+                                                   sep="")))), 
+               size=0.315, shape=15) +
+    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,],
+               aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
+     scale_shape(solid = FALSE) +
+    geom_path(data = outline,
+            aes(x = long, y = lat, group = group),
+            color = outlinecol, size = .2) +
+    labs(color = "Variant")
+  print(g)
+}
 ```
+
+## Phenomen i1
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+p <- "i1"
+plotPhenMV(p)
+plotPhenKDE(p)
+plotPhenII(p)
+plotPhenGI(p)
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+p <- "i6"
+plotPhenMV(p)
+plotPhenKDE(p)
+plotPhenII(p)
+plotPhenGI(p)
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+p <- "i11"
+plotPhenMV(p)
+plotPhenKDE(p)
+plotPhenII(p)
+plotPhenGI(p)
+```
+
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+p <- "iv14"
+plotPhenMV(p)
+plotPhenKDE(p)
+plotPhenII(p)
+plotPhenGI(p)
+```
+
+# Mean energy after spatial regularization
+```{r Mean Energy, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="The mean energy of the four phenomena."}
+## Mean energy map
+# Create combined linguistic region from the four phenomena
+# Energy & class
+g <- ggplot() +
+    theme_classic() + 
+    coord_fixed(ratio = 1) +
+    ggtitle(paste("Infinitival complementizer")) +
+    xlab("Easting") +
+    ylab("Northing") +
+    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+    scale_alpha(guide = 'none') +
+    geom_polygon(data = lakes,
+            aes(x = long, y = lat, group = group),
+            fill = lakecol, size = .2, alpha=0.3) +
+    geom_point(data =  grid, 
+               aes(Easting, Northing, 
+                   colour = MeanEnergy), 
+               size=0.315, shape=15, alpha=0.7) +
+    scale_shape(solid = FALSE) +
+    geom_path(data = outline,
+            aes(x = long, y = lat, group = group),
+            color = outlinecol, size = .2) +
+    labs(color = "Energy")
+print(g)
+```
+
+
