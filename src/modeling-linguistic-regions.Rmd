@@ -2,7 +2,7 @@
 title: "Modeling regions of linguistic phenomena, including the inherent spatial dependencies"
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "16 8 2017"
+date: "18 8 2017"
 
 output:
   rmarkdown::pdf_document:
@@ -86,6 +86,7 @@ library(ggplot2)          # Plots
 library(gdistance)        # Least cost path - Walking time
 library(GISTools)         # Kernel density estimation
 library(rasterVis)        # Plots of rasters
+library(spatialEco)       # Point in polygon
 library(plyr)             # Data type manipulation
 
 # install.packages("e1071")
@@ -99,6 +100,7 @@ library(plyr)             # Data type manipulation
 # install.packages("GISTools")
 # install.packages("rasterVis")
 # install.packages("plyr")
+# install.packages("spatialEco")
 # install.packages("GISTools")
 ```
 
@@ -206,17 +208,25 @@ write.csv(dat, file = file.path(resultsDataFolder, "randomSampling.csv"))
 CH1903 <- CRS("+init=epsg:21781")
 WGS84 <- CRS("+init=epsg:4326")
 
-# Load CH oultine and the multiplot function
+# Load CH oultine
 outline_poly <- readOGR(geoDataFolder, "outlineCH", verbose=FALSE)
 proj4string(outline_poly) <- CH1903
 outline <- fortify(outline_poly)
 outlinecol <- "dimgray"
 
-# Load CH oultine and the multiplot function
+# Load CH lakes
 lakes_poly <- readOGR(geoDataFolder, "Lakes_dissolve_simplify", verbose=FALSE)
 proj4string(lakes_poly) <- CH1903
 lakes <- fortify(lakes_poly)
 lakecol <- "mediumblue"
+
+# Swiss-german region
+swiss_german <- readOGR(geoDataFolder, "deutschSchweiz", verbose=FALSE)
+proj4string(swiss_german) <- CH1903
+
+# Load Thiessen polygons
+thiessen <- readOGR(geoDataFolder, "BFS_Thiessen", verbose=FALSE)
+proj4string(thiessen) <- CH1903
 
 # Load downsampled DEM for plotting
 dhm <- raster(file.path(geoDataFolder, "dhm25_750m_clip_buff.tif"))
@@ -759,8 +769,8 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 400000
-beta <- 1
+it_lim <- 600000
+beta <- 0.5
 
 # Set up storing values and counter
 gridSVMpredict <- numeric(nrow(grid))
@@ -965,9 +975,10 @@ grid$i6_MRF <- mapvalues(grid$i6_MRF, from = c("1", "2"), to = c("für", "zum"))
 grid$i11_MRF <- mapvalues(grid$i11_MRF, from = c("1", "2"), to = c("für", "zum"))
 grid$iv14_MRF <- mapvalues(grid$iv14_MRF, from = c("1", "2"), to = c("für", "zum"))
 
-# Create SpatialPointDataFrame
+# Create SpatialPointDataFrame and cut off points outside swissgerman region
 coordinates(grid) <- ~ Easting + Northing
 proj4string(grid) <- CH1903
+# inside <- !is.na(over(grid, swiss_german))
 inside <- !is.na(over(grid, outline_poly))
 grid <- data.frame(grid)
 grid <- grid[inside, ]
@@ -1032,9 +1043,9 @@ plotPhen <- function(p) {
                    alpha = eval(parse(text = paste("grid$", p, "_Energy",
                                                    sep="")))), 
                size=0.315, shape=15) +
-    # geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,], 
-    #            aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
-    #  scale_shape(solid = FALSE) +
+    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,],
+               aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
+     scale_shape(solid = FALSE) +
     geom_path(data = outline,
             aes(x = long, y = lat, group = group),
             color = outlinecol, size = .2) +
@@ -1093,10 +1104,7 @@ print(g)
 
 \newpage
 ## KDE
-```{r KDE, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Kernel density estimation."}
-# Kernel Desnity Estimation
-## Pius Sibler, K not important, h is important!
-
+```{r KDE, eval=FALSE, fig.align='center', echo=FALSE, fig.cap="Kernel density estimation."}
 # DATA
 # Open original dataset
 savfilename <- "Gesamttabelle_68phen_alleSprecher.sav"
@@ -1118,6 +1126,10 @@ orig_data$BFS_Nr <- sapply(X=" ", gsub, "", orig_data$BFS_Nr)
 # Join data and coordinates based on BFS_nr
 orig_data <- merge(coordsBFS, orig_data, by="BFS_Nr")
 
+# Convert coords BFS to spdf
+coordinates(coordsBFS) <- ~ Easting + Northing
+proj4string(coordsBFS) <- CH1903
+
 # Convert original data to spdf
 coordinates(orig_data) <- ~ Easting + Northing
 proj4string(orig_data) <- CH1903
@@ -1126,7 +1138,15 @@ proj4string(orig_data) <- CH1903
 coordinates(grid) <- ~ Easting + Northing
 proj4string(grid) <- CH1903
 
-bw=10000
+# Get Thiessen_BFS of each grid point
+grid <- point.in.poly(grid, thiessen)
+# plot(grid, col = grid$BFS_Nr)
+
+# ----
+# Kernel Density Estimation AND dominant variant in thiessen
+# Pius Sibler, K not important, h is important!
+# Define Bandwith
+bw=40000
 
 # Phenomena i1
 # Für
@@ -1141,23 +1161,42 @@ f.z <- stack(fuer.KDE, zum.KDE)
 class <- which.max(f.z)
 # Extract value
 val <- max(f.z)
-# Project on existing grid
-grid$i1_KDE <- extract(class, grid)
-grid$i1_KDE <- mapvalues(grid$i1_KDE, from = c("1", "2"), to = c("für", "zum"))
-grid$i1_KDE_Val <- extract(val, grid)
+val <- (val-minValue(val))/(maxValue(val)-minValue(val))
 
+# Extract on coordsBFS
+coordsBFS$i1_KDE <- extract(class, coordsBFS)
+coordsBFS$i1_KDE <- mapvalues(coordsBFS$i1_KDE, from = c("1", "2"), to = c("für", "zum"))
+coordsBFS$i1_KDE_Val <- extract(val, coordsBFS)
+#plot(coordsBFS, col = alpha(coordsBFS$i1_KDE, coordsBFS$i1_KDE_Val))
+
+# # Project on existing grid
+# grid$i1_KDE <- extract(class, grid)
+# grid$i1_KDE <- mapvalues(grid$i1_KDE, from = c("1", "2"), to = c("für", "zum"))
+# grid$i1_KDE_Val <- extract(val, grid)
+
+
+# ----
+# Merge results
+grid <- merge(grid, coordsBFS, by="BFS_Nr")
+# Get dominant variant
+grid <- merge(grid, dat, by.x="BFS_Nr", by.y="BFS")
 # Convert datafram back to grid
 grid <- data.frame(grid)
+# Change to factor
+grid$i1 <- mapvalues(grid$i1, from = c("1", "2"), to = c("für", "zum"))
+
+
+
 
 plotPhenKDE <- function(p) {
   g <- ggplot() +
       theme_classic() + 
       coord_fixed(ratio = 1) +
-      ggtitle(paste("Phenomena", p)) +
+      ggtitle(paste("Kernel density estimation", p)) +
       xlab("Easting") +
       ylab("Northing") +
       geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
-      scale_alpha(guide = 'none') +
+      # scale_alpha(guide = 'none') +
       geom_polygon(data = lakes,
               aes(x = long, y = lat, group = group),
               fill = lakecol, size = .2, alpha=0.3) +
@@ -1170,17 +1209,33 @@ plotPhenKDE <- function(p) {
       geom_path(data = outline,
               aes(x = long, y = lat, group = group),
               color = outlinecol, size = .2) +
-      labs(color = "Energy")
+      labs(color = "Variant", alpha = "Intensity")
   print(g)
 }
+
+plotPhenMV <- function(p) {
+  g <- ggplot() +
+      theme_classic() + 
+      coord_fixed(ratio = 1) +
+      ggtitle(paste("Phenomen", p, ": Majority vote")) +
+      xlab("Easting") +
+      ylab("Northing") +
+      geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+      # scale_alpha(guide = 'none') +
+      geom_polygon(data = lakes,
+              aes(x = long, y = lat, group = group),
+              fill = lakecol, size = .2, alpha=0.3) +
+      geom_point(data =  grid, 
+                 aes(Easting, Northing, 
+                     colour = eval(parse(text = paste("grid$", p, sep="")))), 
+                 size=0.315, shape=15) +
+      scale_shape(solid = FALSE) +
+      geom_path(data = outline,
+              aes(x = long, y = lat, group = group),
+              color = outlinecol, size = .2) +
+      labs(color = "Variant")
+  print(g)
+}
+plotPhenMV("i1")
 plotPhenKDE("i1")
-
-library(deldir)
-# Calculate the Delaunay triangulation, then the tiles.
-z <- deldir(coordsBFS)
-w <- tile.list(z)
-
-# Make a list of pretty colours, and use 'em to plot:
-wcols <- topo.colors(5) 
-plot(w, fillcol=wcols, close=TRUE)
 ```
