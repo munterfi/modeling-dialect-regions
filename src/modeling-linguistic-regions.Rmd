@@ -85,7 +85,7 @@ library(rgdal)            # Open Shapefiles
 library(ggplot2)          # Plots
 library(gdistance)        # Least cost path - Walking time
 library(GISTools)         # Kernel density estimation
-library(gridExtra)        # Arrange Plots
+library(gridExtra)        # Arrange plots
 library(rasterVis)        # Plots of rasters
 library(spatialEco)       # Point in polygon
 library(plyr)             # Data type manipulation
@@ -109,7 +109,7 @@ library(plyr)             # Data type manipulation
 ## Linguistic data
 The database for this project is the Syntactic Atlas of German-speaking Switzerland (SADS). In the years between 2000 and 2002 about 3'200 participants answered four questionnaires at 383 different survey sites. The questions asked, were about syntactic phenomena of the Swiss German language. Compared to other linguistic surveys, SADS is special, because it has multiple participants respondents per study site and therefore covers the local linguistic diversity. Per study site from 3 to 26 persons (median: 8) were involved in the survey [@Bucheli2002; @Jeszenszky2016].  
 In this project, four phenomena of the SADS data set are used, which belong to a syntactical construct that is called ‘infinitival complementizer’. An infinitival complementizer is a so-called purposive infinitival clause, since the clause expresses a purpose. An example from the English language would be the difference between 'in order' to or 'to'.
-The original data set has been aggregated to the level of the Swiss communities. This means each community is represented by a point (point data). Due to the strongly varying number of participants per survey site, a majority voting per survey site and phenomena is not suitable. Therfore, a random sampling on survey site is applied to achieve a statistically more stable data base for the study. Each survey site was sampled 8 (median of persons per survey site) times with replacement. Then a majority vote of phenomena's manifestations was applied on the random sampled dataset. The majority vote values (class assignments) serve as input for the further steps.
+The original data set has been aggregated to the level of the Swiss communities. This means each community is represented by a point (point data). Due to the strongly varying number of participants per survey site, a majority voting per survey site and phenomenon is not suitable. Therfore, a random sampling on survey site is applied to achieve a statistically more stable data base for the study. Each survey site was sampled 8 (median of persons per survey site) times with replacement. Then a majority vote of a phenomenon's manifestations was applied on the random sampled dataset. The majority vote values (class assignments) serve as input for the further steps.
 
 ## Population
 The population data of the Swiss communities in the year 2013 is provided by the Federal Office for statistics (BfS). The data set (STATPOP 2013) represents the population of Switzerland aggregated to hectare raster cells. Each raster cell is stored as a polygon. For easier access on the data, the polygons have been rasterized to a GeoTiff (with 100m resolution) using the *to raster* module of ArcGIS.
@@ -154,7 +154,7 @@ for (i in 1:nrow(coordsBFS)) {
 }
 colnames(datSample) <- phens[2:length(phens)]
 
-# Extract phenomena names
+# Extract phenomenon names
 phens <- sapply(X = phens, FUN = strsplit, "_")
 phenNames <- character(length(phens))
 for (i in 1:length(phens)){
@@ -163,7 +163,7 @@ for (i in 1:length(phens)){
 phenNames <- unique(phenNames)
 phenNames <- phenNames[2:length(phenNames)]
 
-# Phenomena - col matching
+# Phenomenon - col matching
 phens <- colnames(datSample)
 phen2Col <- numeric(length(phens))
 for (i in 1:length(phens)) {
@@ -175,7 +175,7 @@ phen2Col <- max(phen2Col)-phen2Col+1
 # Majority vote on sample
 dat <- numeric(length(phenNames))
 for (i in 1:length(phenNames)){
-  # Get phenomena of interest
+  # Get phenomenon of interest
   phenomena <- datSample[,i == phen2Col]
   # Extract maximum
   dat <- cbind(dat, as.numeric(apply(X = phenomena, FUN = which.max, MARGIN = 1)))
@@ -286,9 +286,10 @@ names <- colnames(dat)
 dat[names[6:ncol(dat)]] <- lapply(dat[names[6:ncol(dat)]], factor)
 ```
 
-```{r Overview plot 1, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena i1. The point size represents the number of participants per survey site."}
+```{r Overview plot 1, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomenon i1. The point size represents the number of participants per survey site."}
 p <- qplot() +
   theme_classic() +
+  ggtitle("Phenomenon i1") +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -306,9 +307,10 @@ p <- qplot() +
 print(p)
 ```
 
-```{r Overview plot 2, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena iv6. The point size represents the number of participants per survey site."}
+```{r Overview plot 2, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomenon iv6. The point size represents the number of participants per survey site."}
 p <- qplot() +
   theme_classic() +
+  ggtitle("Phenomenon i6") +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -326,9 +328,10 @@ p <- qplot() +
 print(p)
 ```
 
-```{r Overview plot 3, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena i11. The point size represents the number of participants per survey site."}
+```{r Overview plot 3, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomenon i11. The point size represents the number of participants per survey site."}
 p <- qplot() +
   theme_classic() +
+  ggtitle("Phenomenon i11") +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -346,9 +349,10 @@ p <- qplot() +
 print(p)
 ```
 
-```{r Overview plot 4, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomena iv14. The point size represents the number of participants per survey site."}
+```{r Overview plot 4, fig.align='center', echo=FALSE, fig.cap="Overview plot of the communities for phenomenon iv14. The point size represents the number of participants per survey site."}
 p <- qplot() +
   theme_classic() +
+  ggtitle("Phenomenon iv14") +
   coord_fixed(ratio = 1) +
   xlab("Easting") +
   ylab("Northing") +
@@ -370,7 +374,7 @@ print(p)
 knitr::kable(head(dat,5), caption = "Structure of the processed data set (random sampling & majority vote).")
 ```
 
-Table 1 shows the structure of the processed data set. Each community is represented as a data point, which has a row in the table. The phenomenas are representend by the majority vote (dominant variant) of the random sampling in a particular community.
+Table 1 shows the structure of the processed data set. Each community is represented as a data point, which has a row in the table. The phenomena are representend by the majority vote (dominant variant) of the random sampling in a particular community.
 
 \newpage
 # Support Vector Machine
@@ -416,7 +420,7 @@ knitr::kable(round(bestParameters,3), caption = "The best parameters from grid s
 
 
 ## Training of the SVM
-With the evaluated parameters from the previous section, a SVM is trained for each phenomena. The trained SVM is of type 'RBF', which means it uses a Gaussian kernel and therefore is a non parametric/nonlinear algorithm.
+With the evaluated parameters from the previous section, a SVM is trained for each phenomenon. The trained SVM is of type 'RBF', which means it uses a Gaussian kernel and therefore is a non parametric/nonlinear algorithm.
 
 \newpage
 # Spatial Context
@@ -741,9 +745,7 @@ levelplot(apply(t(adj[1000:1200, 1000:1200]),1,rev), scales=list(draw=TRUE), col
 ```
 
 \newpage
-
 # Spatial Regularization of the Classification Map
-
 ## Markov Random Field
 The Markov Random Field (MRF) is a statistical method based on a Bayesian approach, which considers spatial dependencies in the decision rule, instead of integrating them in the classification stage. The optimization is done by Iterated Conditional Modes (ICM), which is defined over the minimum energy per data point:
 $$y^* = \underset{y\in C}{\operatorname{argmin}} - [\sum\limits_{i=1}^n\log(p(y_i|x_i)) + \beta\sum\limits_{i=1}^n\sum_{j\in N_i}V(y_i,y_j)]$$
@@ -761,7 +763,6 @@ $$U_{spatial}(x_{i}) = \beta \frac{\sum_{x_j\in N_i} I_{ij}(1-\delta(L_i,  L_j))
 where $\delta(.,.)$ is the Kronecker delta function ($\delta(a, b) = 1$ if $a =b$, and $\delta(a, b) = 0$ otherwise) and $\beta$ is a parameter that controls the importance of the spatial versus spectral energy terms. $I_{ij}$ is the index of the linguistic influence of between two neighbors, defined in the a previous section.
 
 \newpage
-
 ## Minimizing the Global Energy of the MRF
 The global energy of the MRF is defined as the sum of all local energies:
 $$E = \sum\limits_{i=1}^NU(x_{i})$$
@@ -771,7 +772,7 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
 it_lim <- 600000
-beta <- 0.5
+beta <- 1
 
 # Set up storing values and counter
 gridSVMpredict <- numeric(nrow(grid))
@@ -936,7 +937,7 @@ for (p in 6:ncol(dat)){
   # Store local energies
   gridELocal <- cbind(gridELocal, E_local)
   
-  # Increase the phenomena counter
+  # Increase the phenomenon counter
   cat(names[p])
   cat(": Spatial regularization done.\n")
   phenNum <- phenNum + 1
@@ -963,9 +964,9 @@ write.csv(results, file = file.path(resultsDataFolder, "finalResults.csv"))
 write.csv(E_global, file = file.path(resultsDataFolder, "globalEnergies.csv"))
 ```
 
-```{r load final results, echo=FALSE}
+```{r GI load final results, echo=FALSE}
 # Load processed (SVM+MRF) grid
-grid <- read.csv(file.path(resultsDataFolder, "finalResults.csv"))
+grid <- read.csv(file.path(resultsDataFolder, "finalResultsGI.csv"))
 grid <- grid[,-1]
 gridNames <- colnames(grid)
 grid[gridNames[5:ncol(grid)]] <- lapply(grid[gridNames[5:ncol(grid)]], factor)
@@ -995,8 +996,50 @@ grid$i11_Energy <- -1*as.numeric(grid$i11_Energy)
 grid$iv14_Energy <- -1*as.numeric(grid$iv14_Energy)
 
 # Load global energies development
-globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergies.csv"))
+globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergiesGI.csv"))
 globalEnergies <- globalEnergies[,-1]
+```
+
+```{r IWT load final results, echo=FALSE}
+# Load processed (SVM+MRF) grid
+gridIWT <- read.csv(file.path(resultsDataFolder, "finalResultsIWT.csv"))
+gridIWT <- gridIWT[,-1]
+gridNames <- colnames(gridIWT)
+gridIWT[gridNames[5:ncol(gridIWT)]] <- lapply(gridIWT[gridNames[5:ncol(gridIWT)]], factor)
+
+# Name the factor levels
+gridIWT$i1_MRF <- mapvalues(gridIWT$i1_MRF, from = c("1", "2"), to = c("für", "zum"))
+gridIWT$i6_MRF <- mapvalues(gridIWT$i6_MRF, from = c("1", "2"), to = c("für", "zum"))
+gridIWT$i11_MRF <- mapvalues(gridIWT$i11_MRF, from = c("1", "2"), to = c("für", "zum"))
+gridIWT$iv14_MRF <- mapvalues(gridIWT$iv14_MRF, from = c("1", "2"), to = c("für", "zum"))
+
+# Create SpatialPointDataFrame and cut off points outside swissgerman region
+coordinates(gridIWT) <- ~ Easting + Northing
+proj4string(gridIWT) <- CH1903
+# inside <- !is.na(over(gridIWT, swiss_german))
+inside <- !is.na(over(gridIWT, outline_poly))
+gridIWT <- data.frame(gridIWT)
+gridIWT <- gridIWT[inside, ]
+
+tmp_E <- data.frame(gridIWT$i1_Energy, gridIWT$i6_Energy, gridIWT$i11_Energy, gridIWT$iv14_Energy)
+tmp_E <- apply(X=tmp_E, FUN=as.numeric, MARGIN = 2)
+gridIWT$MeanEnergy <- apply(X=tmp_E, FUN=mean, MARGIN = 1)
+
+# Invert the local energies
+gridIWT$i1_Energy <- -1*as.numeric(gridIWT$i1_Energy)
+gridIWT$i6_Energy <- -1*as.numeric(gridIWT$i6_Energy)
+gridIWT$i11_Energy <- -1*as.numeric(gridIWT$i11_Energy)
+gridIWT$iv14_Energy <- -1*as.numeric(gridIWT$iv14_Energy)
+
+# Convert grid to spdf, cut to same extent
+coordinates(gridIWT) <- ~ Easting + Northing
+proj4string(gridIWT) <- CH1903
+gridIWT <- point.in.poly(gridIWT, thiessen)
+gridIWT <- data.frame(gridIWT)
+
+# Load global energies development
+globalEnergiesIWT <- read.csv(file.path(resultsDataFolder, "globalEnergiesIWT.csv"))
+globalEnergiesIWT <- globalEnergiesIWT[,-1]
 ```
 
 ```{r KDE and Thiessen, eval=TRUE, message=FALSE, warnings=FALSE, fig.align='center', echo=FALSE, fig.cap="Kernel density estimation."}
@@ -1005,7 +1048,7 @@ globalEnergies <- globalEnergies[,-1]
 savfilename <- "Gesamttabelle_68phen_alleSprecher.sav"
 orig_data = read.spss(file.path(origDataFolder,savfilename), to.data.frame=TRUE)
 
-# Extract phenomenas for the syntactical construct that is called ‘infinitival complementizer’
+# Extract phenomena for the syntactical construct that is called ‘infinitival complementizer’
 orig_data <- orig_data[c("BFS_Nr", "i1_fz", "i1_zz", "i6_fz", "i6_zz", "i11_fz", "i11_zz", "iv14_fz", "iv14_zz")]
 phens <- colnames(orig_data)
 
@@ -1043,7 +1086,7 @@ grid <- point.in.poly(grid, thiessen)
 # Define Bandwith
 bw=40000
 
-# Phenomena i1
+# Phenomenon i1
 # Für
 i1.fuer <- orig_data[orig_data$i1_fz==1,]
 fuer.KDE <- raster(kde.points(i1.fuer, h=bw, n=1500, lims=extent(grid)))
@@ -1063,7 +1106,7 @@ coordsBFS$i1_KDE <- extract(class, coordsBFS)
 coordsBFS$i1_KDE <- mapvalues(coordsBFS$i1_KDE, from = c("1", "2"), to = c("für", "zum"))
 coordsBFS$i1_KDE_Val <- extract(val, coordsBFS)
 
-# Phenomena i6
+# Phenomenon i6
 # Für
 i6.fuer <- orig_data[orig_data$i6_fz==1,]
 fuer.KDE <- raster(kde.points(i6.fuer, h=bw, n=1500, lims=extent(grid)))
@@ -1083,7 +1126,7 @@ coordsBFS$i6_KDE <- extract(class, coordsBFS)
 coordsBFS$i6_KDE <- mapvalues(coordsBFS$i6_KDE, from = c("1", "2"), to = c("für", "zum"))
 coordsBFS$i6_KDE_Val <- extract(val, coordsBFS)
 
-# Phenomena i11
+# Phenomenon i11
 # Für
 i11.fuer <- orig_data[orig_data$i11_fz==1,]
 fuer.KDE <- raster(kde.points(i11.fuer, h=bw, n=1500, lims=extent(grid)))
@@ -1103,7 +1146,7 @@ coordsBFS$i11_KDE <- extract(class, coordsBFS)
 coordsBFS$i11_KDE <- mapvalues(coordsBFS$i11_KDE, from = c("1", "2"), to = c("für", "zum"))
 coordsBFS$i11_KDE_Val <- extract(val, coordsBFS)
 
-# Phenomena iv14
+# Phenomenon iv14
 # Für
 iv14.fuer <- orig_data[orig_data$iv14_fz==1,]
 fuer.KDE <- raster(kde.points(iv14.fuer, h=bw, n=1500, lims=extent(grid)))
@@ -1147,14 +1190,24 @@ grid$iv14 <- mapvalues(grid$iv14, from = c("1", "2"), to = c("für", "zum"))
 \newpage
 # Results
 ## Energies after spatial regularization
-```{r Plot energies, echo=FALSE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the global energies (in logarithmic scale) during the iterative minimization of the local energies."}
+```{r Plot energies, echo=FALSE, fig.align='center', fig.height=2, echo=FALSE, fig.cap="Development of the global energies (in logarithmic scale) during the iterative minimization of the local energies. Spatial regularizaion with a) the inverse walking time and b) the gravity index describing the linguistic influence of two neighbors on each other."}
 # Basic line plot with points
-p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Energy, color = Phenomena, group = Phenomena)) +
+p1 <- ggplot(data=globalEnergiesIWT, aes(x=Iteration, y=Energy, color = Phenomena, group = Phenomena)) +
   theme_classic() + 
-  geom_line()
+  ggtitle("a) Inverse walking time") +
+  geom_line() +
+  theme(text=element_text(size=10))
   #theme(legend.position="none")
 
-print(p)
+p2 <- ggplot(data=globalEnergies, aes(x=Iteration, y=Energy, color = Phenomena, group = Phenomena)) +
+  theme_classic() + 
+  ggtitle("b) Gravity index") +
+  geom_line() +
+  theme(text=element_text(size=10))
+  labs(color = "Phenomenon")
+  #theme(legend.position="none")
+
+grid.arrange(p1, p2, ncol=2)
 ```
 
 ```{r Plot temperature, eval=TRUE, fig.align='center', fig.width=4.5, fig.height=2, echo=FALSE, fig.cap="Development of the temperatures during the iterative minimization of the local energies (annealing)."}
@@ -1167,9 +1220,9 @@ p <- ggplot(data=globalEnergies, aes(x=Iteration, y=Temperature, group = Phenome
 print(p)
 ```
 
-```{r Mean Energy, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="The mean energies of the four phenomena after the spatial regularizaion with a) Inverse walking time and b) gravity index."}
+```{r Mean Energy, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="The mean energies of the four phenomena after the spatial regularization with a) the inverse walking time and b) the gravity index describing the linguistic influence of two neighbors on each other."}
 # Mean energy map for inverse walking time
-g1 <- ggplot() +
+g <- ggplot() +
     theme_classic() + 
     coord_fixed(ratio = 1) +
     ggtitle("a) Inverse walking time") +
@@ -1180,7 +1233,7 @@ g1 <- ggplot() +
     geom_polygon(data = lakes,
             aes(x = long, y = lat, group = group),
             fill = lakecol, size = .2, alpha=0.3) +
-    geom_point(data =  grid, 
+    geom_point(data =  gridIWT, 
                aes(Easting, Northing, 
                    colour = MeanEnergy), 
                size=0.315, shape=15, alpha=0.7) +
@@ -1188,10 +1241,12 @@ g1 <- ggplot() +
     geom_path(data = outline,
             aes(x = long, y = lat, group = group),
             color = outlinecol, size = .2) +
+    theme(text=element_text(size=10)) +
     labs(color = "Energy")
+print(g)
 
 # Mean energy map for gravity index
-g2 <- ggplot() +
+g <- ggplot() +
     theme_classic() + 
     coord_fixed(ratio = 1) +
     ggtitle("b) Gravity index") +
@@ -1210,20 +1265,21 @@ g2 <- ggplot() +
     geom_path(data = outline,
             aes(x = long, y = lat, group = group),
             color = outlinecol, size = .2) +
+    theme(text=element_text(size=10)) +
     labs(color = "Energy")
-
-grid.arrange(g1, g2, ncol=2)
+print(g)
 ```
 
+\newpage
 ## Inverse walking time and gravity index
-```{r plot phenomena function, eval=TRUE, fig.align='center', echo=FALSE}
-# In this section the classification results of the spatial regularization applied on each phenomena are presented. The changed grid data points are marked with black squares in the plots.
+```{r plot phenomena functions, eval=TRUE, fig.align='center', echo=FALSE}
+# In this section the classification results of the spatial regularization applied on each phenomenon are presented. The changed grid data points are marked with black squares in the plots.
 # Spatial regularization, gravity index
-plotPhenII <- function(p) {
+plotPhenIWT <- function(p) {
   g <- ggplot() +
     theme_classic() + 
     coord_fixed(ratio = 1) +
-    ggtitle("Inverse walking time & spatial regularization") +
+    ggtitle("a) Inverse walking time & spatial regularization") +
     xlab("Easting") +
     ylab("Northing") +
     geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
@@ -1233,11 +1289,11 @@ plotPhenII <- function(p) {
             fill = lakecol, size = .2, alpha=0.3) +
     geom_point(data =  grid, 
                aes(Easting, Northing, 
-                   colour = eval(parse(text = paste("grid$", p, "_MRF", sep=""))),
-                   alpha = eval(parse(text = paste("grid$", p, "_Energy",
+                   colour = eval(parse(text = paste("gridIWT$", p, "_MRF", sep=""))),
+                   alpha = eval(parse(text = paste("gridIWT$", p, "_Energy",
                                                    sep="")))), 
                size=0.315, shape=15) +
-    geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,],
+    geom_point(data = grid[eval(parse(text = paste("gridIWT$", p, "_Change", sep="")))==1,],
                aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
      scale_shape(solid = FALSE) +
     geom_path(data = outline,
@@ -1252,7 +1308,7 @@ plotPhenGI <- function(p) {
   g <- ggplot() +
     theme_classic() + 
     coord_fixed(ratio = 1) +
-    ggtitle("Gravity index & spatial regularization") +
+    ggtitle("b) Gravity index & spatial regularization") +
     xlab("Easting") +
     ylab("Northing") +
     geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
@@ -1277,24 +1333,42 @@ plotPhenGI <- function(p) {
 }
 ```
 
-### Phenomen i1
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+### Phenomenon i1
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization with a) the inverse walking time and b) the gravity index describing the linguistic influence of two neighbors on each other."}
 p <- "i1"
-plotPhenII(p)
+plotPhenIWT(p)
 plotPhenGI(p)
 ```
-### Phenomen i6
-### Phenomen i11
-### Phenomen iv14
+
+### Phenomenon i6
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization with a) the inverse walking time and b) the gravity index describing the linguistic influence of two neighbors on each other."}
+p <- "i6"
+plotPhenIWT(p)
+plotPhenGI(p)
+```
+
+### Phenomenon i11
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization with a) the inverse walking time and b) the gravity index describing the linguistic influence of two neighbors on each other."}
+p <- "i11"
+plotPhenIWT(p)
+plotPhenGI(p)
+```
+
+### Phenomenon iv14
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization with a) the inverse walking time and b) the gravity index describing the linguistic influence of two neighbors on each other."}
+p <- "iv14"
+plotPhenIWT(p)
+plotPhenGI(p)
+```
 
 ## Evaluation
-```{r plot phenomena function, eval=TRUE, fig.align='center', echo=FALSE}
+```{r plot phenomenon function, eval=TRUE, fig.align='center', echo=FALSE}
 # Majority vote
 plotPhenMV <- function(p) {
   g <- ggplot() +
       theme_classic() + 
       coord_fixed(ratio = 1) +
-      ggtitle("Majority vote & Thiessen polygons") +
+      ggtitle("a) Majority vote & Thiessen polygons") +
       xlab("Easting") +
       ylab("Northing") +
       geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
@@ -1319,7 +1393,7 @@ plotPhenKDE <- function(p) {
   g <- ggplot() +
       theme_classic() + 
       coord_fixed(ratio = 1) +
-      ggtitle(paste("Kernel density estimation & Thiessen polygons", p)) +
+      ggtitle("b) Kernel density estimation & Thiessen polygons") +
       xlab("Easting") +
       ylab("Northing") +
       geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
@@ -1341,11 +1415,11 @@ plotPhenKDE <- function(p) {
 }
 
 # Spatial regularization, gravity index
-plotPhenII <- function(p) {
+plotPhenIWT <- function(p) {
   g <- ggplot() +
     theme_classic() + 
     coord_fixed(ratio = 1) +
-    ggtitle("Inverse walking time & spatial regularization") +
+    ggtitle("c) Inverse walking time & spatial regularization") +
     xlab("Easting") +
     ylab("Northing") +
     geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
@@ -1355,11 +1429,11 @@ plotPhenII <- function(p) {
             fill = lakecol, size = .2, alpha=0.3) +
     geom_point(data =  grid, 
                aes(Easting, Northing, 
-                   colour = eval(parse(text = paste("grid$", p, "_MRF", sep=""))),
-                   alpha = eval(parse(text = paste("grid$", p, "_Energy",
+                   colour = eval(parse(text = paste("gridIWT$", p, "_MRF", sep=""))),
+                   alpha = eval(parse(text = paste("gridIWT$", p, "_Energy",
                                                    sep="")))), 
                size=0.315, shape=15) +
-    # geom_point(data = grid[eval(parse(text = paste("grid$", p, "_Change", sep="")))==1,],
+    # geom_point(data = grid[eval(parse(text = paste("gridIWT$", p, "_Change", sep="")))==1,],
     #            aes(Easting, Northing), size=0.58, shape=0, stroke = 0.1) +
      scale_shape(solid = FALSE) +
     geom_path(data = outline,
@@ -1374,7 +1448,7 @@ plotPhenGI <- function(p) {
   g <- ggplot() +
     theme_classic() + 
     coord_fixed(ratio = 1) +
-    ggtitle("Gravity index & spatial regularization") +
+    ggtitle("d) Gravity index & spatial regularization") +
     xlab("Easting") +
     ylab("Northing") +
     geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
@@ -1398,61 +1472,42 @@ plotPhenGI <- function(p) {
   print(g)
 }
 ```
-### Phenomen i1
-### Phenomen i6
-### Phenomen i11
-### Phenomen iv14
 
-
-
-## Phenomen i1
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+### Phenomenon i1
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of a) a majority voting on Thiessen polygon aggregation level, b) a kernel density estimation on Thiessen polygon aggregation level, c) a spatial regularization with the inverse walking time and d) a spatial regularization with the gravity index describing the linguistic influence of two neighbors on each other."}
 p <- "i1"
 plotPhenMV(p)
 plotPhenKDE(p)
-plotPhenII(p)
+plotPhenIWT(p)
 plotPhenGI(p)
 ```
 
-## Phenomen i6
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+### Phenomenon i6
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of a) a majority voting on Thiessen polygon aggregation level, b) a kernel density estimation on Thiessen polygon aggregation level, c) a spatial regularization with the inverse walking time and d) a spatial regularization with the gravity index describing the linguistic influence of two neighbors on each other."}
 p <- "i6"
 plotPhenMV(p)
 plotPhenKDE(p)
-plotPhenII(p)
+plotPhenIWT(p)
 plotPhenGI(p)
 ```
 
-## Phenomen i11
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+### Phenomenon i11
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of a) a majority voting on Thiessen polygon aggregation level, b) a kernel density estimation on Thiessen polygon aggregation level, c) a spatial regularization with the inverse walking time and d) a spatial regularization with the gravity index describing the linguistic influence of two neighbors on each other."}
 p <- "i11"
 plotPhenMV(p)
 plotPhenKDE(p)
-plotPhenII(p)
+plotPhenIWT(p)
 plotPhenGI(p)
 ```
 
-## Phenomen iv14
-```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of the spatial regularization."}
+### Phenomenon iv14
+```{r , eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Classification result of a) a majority voting on Thiessen polygon aggregation level, b) a kernel density estimation on Thiessen polygon aggregation level, c) a spatial regularization with the inverse walking time and d) a spatial regularization with the gravity index describing the linguistic influence of two neighbors on each other."}
 p <- "iv14"
 plotPhenMV(p)
 plotPhenKDE(p)
-plotPhenII(p)
+plotPhenIWT(p)
 plotPhenGI(p)
 ```
-
-# Results
-## Energies after spatial regularization
-## Inverse walking time and gravity index
-### Phenomen i1
-### Phenomen i6
-### Phenomen i11
-### Phenomen iv14
-## Evaluation
-### Phenomen i1
-### Phenomen i6
-### Phenomen i11
-### Phenomen iv14
 
 # Conclusion
 
