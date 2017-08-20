@@ -71,7 +71,7 @@ The following libraries are needed, to execute the code:
 * **ggplot2** -- Plots -- [@ggplot2]
 * **GISTools** -- Plots -- [@GISTools]
 * **gridExtra** -- Plots -- [@gridExtra]
-* **rasterVis** -- Plots of raster -- [@rasterVIS]
+* **rasterVis** -- Plots of raster -- [@rasterVis]
 * **rgdal** -- Open Shapefiles -- [@rgdal]
 * **rgeos** -- Geoprocessing -- [@rgeos]
 * **sp** -- Spatial datatypes -- [@sp2; @sp1]
@@ -463,7 +463,7 @@ grid <- grid[!is.na(grid$Height),]
 grid$Population <- extract(statpop13B, grid)
 
 # p <- qplot() +
-#   theme_classic() + 
+#   theme_classic() +
 #   coord_fixed(ratio = 1) +
 #   xlab("Easting") +
 #   ylab("Northing") +
@@ -1389,7 +1389,7 @@ plotPhenGI(p)
 ```
 
 \newpage
-## Evaluation
+## Method comparison maps
 ```{r plot phenomenon function, eval=TRUE, fig.align='center', echo=FALSE}
 # Majority vote
 plotPhenMV <- function(p) {
@@ -1549,7 +1549,165 @@ plotPhenIWT(p)
 plotPhenGI(p)
 ```
 
-## Difference
+## Difference maps
+```{r difference images , eval=TRUE, fig.align='center', echo=FALSE}
+plotPhenDiffIWT <- function(p) {
+  g <- ggplot() +
+    theme_classic() + 
+    coord_fixed(ratio = 1) +
+    ggtitle("a) Difference KDE and IWT") +
+    xlab("Easting") +
+    ylab("Northing") +
+    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+    scale_alpha(guide = 'none') +
+    geom_polygon(data = lakes,
+            aes(x = long, y = lat, group = group),
+            fill = lakecol, size = .2, alpha=0.3) +
+    geom_point(data =  grid, 
+               aes(Easting, Northing, 
+                   colour = eval(parse(text = paste("grid$", p, "_diff_IWT", sep="")))),
+               size=0.315, shape=15) +
+     scale_shape(solid = FALSE) +
+    geom_path(data = outline,
+            aes(x = long, y = lat, group = group),
+            color = outlinecol, size = .2) +
+    labs(color = "Equal")
+  print(g)
+}
+
+plotPhenDiffGI <- function(p) {
+  g <- ggplot() +
+    theme_classic() + 
+    coord_fixed(ratio = 1) +
+    ggtitle("b) Difference KDE and GI") +
+    xlab("Easting") +
+    ylab("Northing") +
+    geom_tile(data=hdfCH, aes(X,Y), alpha=hdfCH$Hill, fill = "grey10") +
+    scale_alpha(guide = 'none') +
+    geom_polygon(data = lakes,
+            aes(x = long, y = lat, group = group),
+            fill = lakecol, size = .2, alpha=0.3) +
+    geom_point(data =  grid, 
+               aes(Easting, Northing, 
+                   colour = eval(parse(text = paste("grid$", p, "_diff_GI", sep="")))),
+               size=0.315, shape=15) +
+     scale_shape(solid = FALSE) +
+    geom_path(data = outline,
+            aes(x = long, y = lat, group = group),
+            color = outlinecol, size = .2) +
+    labs(color = "Equal")
+  print(g)
+}
+
+# i1
+grid$i1_diff_IWT <- as.numeric(grid$i1_KDE == gridIWT$i1_MRF) * 1
+grid$i1_diff_IWT <- grid$i1_diff_IWT + (as.numeric(grid$i1_KDE != gridIWT$i1_MRF) * as.numeric(grid$i1_KDE == "für") * 2)
+grid$i1_diff_IWT <- grid$i1_diff_IWT + (as.numeric(grid$i1_KDE != gridIWT$i1_MRF) * as.numeric(grid$i1_KDE == "zum") * 3)
+grid$i1_diff_IWT <- as.factor(grid$i1_diff_IWT)
+levels(grid$i1_diff_IWT) <- c(1,2,3)
+grid$i1_diff_IWT <- mapvalues(grid$i1_diff_IWT, from = c("1", "2", "3"), to = c("Equal", "KDE für, MRF zum", "KDE zum, MRF für"))
+levels(grid$i1_diff_IWT) <- c("Equal", "KDE für, MRF zum", "KDE zum, MRF für")
+
+grid$i1_diff_GI <- as.numeric(grid$i1_KDE == grid$i1_MRF) * 1
+grid$i1_diff_GI <- grid$i1_diff_GI + (as.numeric(grid$i1_KDE != grid$i1_MRF) * as.numeric(grid$i1_KDE == "für") * 2)
+grid$i1_diff_GI <- grid$i1_diff_GI + (as.numeric(grid$i1_KDE != grid$i1_MRF) * as.numeric(grid$i1_KDE == "zum") * 3)
+grid$i1_diff_GI <- as.factor(grid$i1_diff_GI)
+levels(grid$i1_diff_GI) <- c(1,2,3)
+grid$i1_diff_GI <- mapvalues(grid$i1_diff_GI, from = c("1", "2", "3"), to = c("Equal", "KDE für, MRF zum", "KDE zum, MRF für"))
+
+# i6
+grid$i6_diff_IWT <- as.numeric(grid$i6_KDE == gridIWT$i6_MRF) * 1
+grid$i6_diff_IWT <- grid$i6_diff_IWT + (as.numeric(grid$i6_KDE != gridIWT$i6_MRF) * as.numeric(grid$i6_KDE == "für") * 2)
+grid$i6_diff_IWT <- grid$i6_diff_IWT + (as.numeric(grid$i6_KDE != gridIWT$i6_MRF) * as.numeric(grid$i6_KDE == "zum") * 3)
+grid$i6_diff_IWT <- as.factor(grid$i6_diff_IWT)
+levels(grid$i6_diff_IWT) <- c(1,2,3)
+grid$i6_diff_IWT <- mapvalues(grid$i6_diff_IWT, from = c("1", "2", "3"), to = c("Equal", "KDE für, MRF zum", "KDE zum, MRF für"))
+levels(grid$i6_diff_IWT) <- c("Equal", "KDE für, MRF zum", "KDE zum, MRF für")
+
+grid$i6_diff_GI <- as.numeric(grid$i6_KDE == grid$i6_MRF) * 1
+grid$i6_diff_GI <- grid$i6_diff_GI + (as.numeric(grid$i6_KDE != grid$i6_MRF) * as.numeric(grid$i6_KDE == "für") * 2)
+grid$i6_diff_GI <- grid$i6_diff_GI + (as.numeric(grid$i6_KDE != grid$i6_MRF) * as.numeric(grid$i6_KDE == "zum") * 3)
+grid$i6_diff_GI <- as.factor(grid$i6_diff_GI)
+levels(grid$i6_diff_GI) <- c(1,2,3)
+grid$i6_diff_GI <- mapvalues(grid$i6_diff_GI, from = c("1", "2", "3"), to = c("Equal", "KDE für, MRF zum", "KDE zum, MRF für"))
+
+# i11
+grid$i11_diff_IWT <- as.numeric(grid$i11_KDE == gridIWT$i11_MRF) * 1
+grid$i11_diff_IWT <- grid$i11_diff_IWT + (as.numeric(grid$i11_KDE != gridIWT$i11_MRF) * as.numeric(grid$i11_KDE == "für") * 2)
+grid$i11_diff_IWT <- grid$i11_diff_IWT + (as.numeric(grid$i11_KDE != gridIWT$i11_MRF) * as.numeric(grid$i11_KDE == "zum") * 3)
+grid$i11_diff_IWT <- as.factor(grid$i11_diff_IWT)
+levels(grid$i11_diff_IWT) <- c(1,2,3)
+grid$i11_diff_IWT <- mapvalues(grid$i11_diff_IWT, from = c("1", "2", "3"), to = c("Equal", "KDE für, MRF zum", "KDE zum, MRF für"))
+
+grid$i11_diff_GI <- as.numeric(grid$i11_KDE == grid$i11_MRF) * 1
+grid$i11_diff_GI <- grid$i11_diff_GI + (as.numeric(grid$i11_KDE != grid$i11_MRF) * as.numeric(grid$i11_KDE == "für") * 2)
+grid$i11_diff_GI <- grid$i11_diff_GI + (as.numeric(grid$i11_KDE != grid$i11_MRF) * as.numeric(grid$i11_KDE == "zum") * 3)
+grid$i11_diff_GI <- as.factor(grid$i11_diff_GI)
+levels(grid$i11_diff_GI) <- c(1,2,3)
+grid$i11_diff_GI <- mapvalues(grid$i11_diff_GI, from = c("1", "2", "3"), to = c("Equal", "KDE für, MRF zum", "KDE zum, MRF für"))
+
+# iv14
+grid$iv14_diff_IWT <- as.numeric(grid$iv14_KDE == gridIWT$iv14_MRF) * 1
+grid$iv14_diff_IWT <- grid$iv14_diff_IWT + (as.numeric(grid$iv14_KDE != gridIWT$iv14_MRF) * as.numeric(grid$iv14_KDE == "für") * 2)
+grid$iv14_diff_IWT <- grid$iv14_diff_IWT + (as.numeric(grid$iv14_KDE != gridIWT$iv14_MRF) * as.numeric(grid$iv14_KDE == "zum") * 3)
+grid$iv14_diff_IWT <- as.factor(grid$iv14_diff_IWT)
+levels(grid$iv14_diff_IWT) <- c(1,2,3)
+grid$iv14_diff_IWT <- mapvalues(grid$iv14_diff_IWT, from = c("1", "2", "3"), to = c("Equal", "KDE für, MRF zum", "KDE zum, MRF für"))
+
+grid$iv14_diff_GI <- as.numeric(grid$iv14_KDE == grid$iv14_MRF) * 1
+grid$iv14_diff_GI <- grid$iv14_diff_GI + (as.numeric(grid$iv14_KDE != grid$iv14_MRF) * as.numeric(grid$iv14_KDE == "für") * 2)
+grid$iv14_diff_GI <- grid$iv14_diff_GI + (as.numeric(grid$iv14_KDE != grid$iv14_MRF) * as.numeric(grid$iv14_KDE == "zum") * 3)
+grid$iv14_diff_GI <- as.factor(grid$iv14_diff_GI)
+levels(grid$iv14_diff_GI) <- c(1,2,3)
+grid$iv14_diff_GI <- mapvalues(grid$iv14_diff_GI, from = c("1", "2", "3"), to = c("Equal", "KDE für, MRF zum", "KDE zum, MRF für"))
+
+# grid$i1_diff_GI <- grid$i1_KDE == grid$i1_MRF
+# # i6
+# grid$i6_diff_IWT <- grid$i6_KDE == gridIWT$i6_MRF
+# grid$i6_diff_GI <- grid$i6_KDE == grid$i6_MRF
+# # i11
+# grid$i11_diff_IWT <- grid$i11_KDE == gridIWT$i11_MRF
+# grid$i11_diff_GI <- grid$i11_KDE == grid$i11_MRF
+# # iv14
+# grid$iv14_diff_IWT <- grid$iv14_KDE == gridIWT$iv14_MRF
+# grid$iv14_diff_GI <- grid$iv14_KDE == grid$iv14_MRF
+```
+
+### Phenomen i1
+```{r, eval=TRUE, fig.align='center', echo=FALSE}
+plotPhenDiffIWT("i1")
+```
+
+```{r, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Difference images between KDE map and spatial regularization of a) a spatial regularization with the inverse walking time and d) a spatial regularization with the gravity index."}
+plotPhenDiffGI("i1")
+```
+
+### Phenomen i6
+```{r, eval=TRUE, fig.align='center', echo=FALSE}
+plotPhenDiffIWT("i6")
+```
+
+```{r, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Difference images between KDE map and spatial regularization of a) a spatial regularization with the inverse walking time and d) a spatial regularization with the gravity index."}
+plotPhenDiffGI("i6")
+```
+
+### Phenomen i11
+```{r, eval=TRUE, fig.align='center', echo=FALSE}
+plotPhenDiffIWT("i11")
+```
+
+```{r, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Difference images between KDE map and spatial regularization of a) a spatial regularization with the inverse walking time and d) a spatial regularization with the gravity index."}
+plotPhenDiffGI("i11")
+```
+
+### Phenomen iv14
+```{r, eval=TRUE, fig.align='center', echo=FALSE}
+plotPhenDiffIWT("iv14")
+```
+
+```{r, eval=TRUE, fig.align='center', echo=FALSE, fig.cap="Difference images between KDE map and spatial regularization of a) a spatial regularization with the inverse walking time and d) a spatial regularization with the gravity index."}
+plotPhenDiffGI("iv14")
+```
 
 # Conclusion
 
