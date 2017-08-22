@@ -773,7 +773,7 @@ Per iteration a randomly chosen data point is assigned to a random class. Based 
 
 ```{r Minimize Energy, eval=FALSE, echo=FALSE}
 # Set up parameters: t = temperature, beta = influence of space, it_lim = number of iterations
-it_lim <- 400000
+it_lim <- 700000
 beta <- 1
 
 # Set up storing values and counter
