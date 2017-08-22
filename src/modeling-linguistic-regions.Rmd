@@ -2,7 +2,7 @@
 title: "Modeling regions of linguistic phenomena, including the inherent spatial dependencies"
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "21 8 2017"
+date: "22 8 2017"
 
 output:
   rmarkdown::pdf_document:
@@ -711,11 +711,11 @@ $P_i$ stands for the population size of the data point $i$ (community) and $d_{i
 
 ```{r Gravity index, message=FALSE, echo=FALSE}
 # Choose method for wighting the edges
-# GI:  Gravity Index
-method = "GI"
+# # GI:  Gravity Index
+# method = "GI"
 
-# # IWT: Inverse Walking Time
-# method = "IWT"
+# IWT: Inverse Walking Time
+method = "IWT"
 
 # Gravity index
 if(method=="GI"){
@@ -962,7 +962,7 @@ if(method=="IWT"){
 
 ```{r GI load final results, echo=FALSE}
 # Load processed (SVM+MRF) grid
-grid <- read.csv(file.path(resultsDataFolder, "finalResultsGI.csv"))
+grid <- read.csv(file.path(resultsDataFolder, "finalResultsGI_new.csv"))
 grid <- grid[,-1]
 gridNames <- colnames(grid)
 grid[gridNames[5:ncol(grid)]] <- lapply(grid[gridNames[5:ncol(grid)]], factor)
@@ -992,13 +992,13 @@ grid$i11_Energy <- -1*as.numeric(grid$i11_Energy)
 grid$iv14_Energy <- -1*as.numeric(grid$iv14_Energy)
 
 # Load global energies development
-globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergiesGI.csv"))
+globalEnergies <- read.csv(file.path(resultsDataFolder, "globalEnergiesGI_new.csv"))
 globalEnergies <- globalEnergies[,-1]
 ```
 
 ```{r IWT load final results, echo=FALSE}
 # Load processed (SVM+MRF) grid
-gridIWT <- read.csv(file.path(resultsDataFolder, "finalResultsIWT.csv"))
+gridIWT <- read.csv(file.path(resultsDataFolder, "finalResultsIWT_new.csv"))
 gridIWT <- gridIWT[,-1]
 gridNames <- colnames(gridIWT)
 gridIWT[gridNames[5:ncol(gridIWT)]] <- lapply(gridIWT[gridNames[5:ncol(gridIWT)]], factor)
@@ -1034,7 +1034,7 @@ gridIWT <- point.in.poly(gridIWT, thiessen)
 gridIWT <- data.frame(gridIWT)
 
 # Load global energies development
-globalEnergiesIWT <- read.csv(file.path(resultsDataFolder, "globalEnergiesIWT.csv"))
+globalEnergiesIWT <- read.csv(file.path(resultsDataFolder, "globalEnergiesIWT_new.csv"))
 globalEnergiesIWT <- globalEnergiesIWT[,-1]
 ```
 
