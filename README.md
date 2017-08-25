@@ -33,7 +33,7 @@ The project is supervised by Curdin Derungs, head of the GISLab, a research grou
 
 ## Authors
 
-* **Merlin Unterfinger** - *Development and implementation* - [munterfinger](https://github.com/munterfinger)
+* **Merlin Unterfinger** - *Development and implementation* - [munterfinger](munterfinger.ch)
 * **Curdin Derungs** - *Theoretical background* - [GISLab](http://www.spur.uzh.ch/de/departments/gislab/personen/curdinderungs.html)
 
 ## Built With
