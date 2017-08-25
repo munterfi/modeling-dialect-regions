@@ -2,7 +2,7 @@
 title: "Modeling regions of linguistic phenomena, including the inherent spatial dependencies"
 subtitle: 'UFSP SpuR: SynMod+'
 author: "Merlin Unterfinger, Geography UZH"
-date: "22 8 2017"
+date: "24 8 2017"
 
 output:
   rmarkdown::pdf_document:
@@ -711,11 +711,11 @@ $P_i$ stands for the population size of the data point $i$ (community) and $d_{i
 
 ```{r Gravity index, message=FALSE, echo=FALSE}
 # Choose method for wighting the edges
-# # GI:  Gravity Index
-# method = "GI"
+# GI:  Gravity Index
+method = "GI"
 
-# IWT: Inverse Walking Time
-method = "IWT"
+# # IWT: Inverse Walking Time
+# method = "IWT"
 
 # Gravity index
 if(method=="GI"){
