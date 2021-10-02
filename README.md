@@ -1,7 +1,7 @@
 # Modeling regions of linguistic phenomena, including the inherent spatial dependencies
 Generating continuous spatial surfaces for the manifestations and intensity of the 'infinitival complementizer' linguistic phenomena in the Swiss-German language (SADS phenomena I1, I6, I11 & IV14).
 
-Detailed project [report](https://munterfinger.github.io/modeling-dialect-regions/)
+Detailed project [report](https://munterfi.github.io/modeling-dialect-regions/)
 
 |![Screen01](docs/screens/i1_sample.png) | ![Screen02](docs/screens/i1_result.png)|
 |---|---|
@@ -33,7 +33,7 @@ The project is supervised by Curdin Derungs, head of the GISLab, a research grou
 
 ## Authors
 
-* **Merlin Unterfinger** - *Development and implementation* - [munterfinger](munterfinger.ch)
+* **Merlin Unterfinger** - *Development and implementation* - [munterfi](https://github.com/munterfi)
 * **Curdin Derungs** - *Theoretical background* - [GISLab](http://www.spur.uzh.ch/de/departments/gislab/personen/curdinderungs.html)
 
 ## Built With
